@@ -1,0 +1,77 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: ielts-postgres
+    environment:
+      POSTGRES_USER: ielts
+      POSTGRES_PASSWORD: ielts_secret
+      POSTGRES_DB: ieltsdb
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ielts"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7
+    container_name: ielts-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Qdrant Vector Database (optional - commented out for faster startup)
+  # qdrant:
+  #   image: qdrant/qdrant:v1.12.0
+  #   container_name: ielts-qdrant
+  #   environment:
+  #     - QDRANT__storage__path=/qdrant/storage
+  #     - QDRANT__service__host=0.0.0.0
+  #     - QDRANT__service__port=6333
+  #   volumes:
+  #     - qdrant_storage:/qdrant/storage
+  #   ports:
+  #     - "6333:6333"
+
+  # Backend API (all services combined)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ielts-backend
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - import_storage:/app/imports
+      - audio_storage:/app/audio
+
+volumes:
+  postgres_data:
+  qdrant_storage:
+  import_storage:
+  audio_storage:
+
+networks:
+  default:
+    name: ielts-network

@@ -1,0 +1,89 @@
+[project]
+name = "ielts-tutor-backend"
+version = "0.1.0"
+description = "AI IELTS Tutor Backend - Microservices Architecture"
+requires-python = ">=3.11"
+dependencies = [
+    # FastAPI and server
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "httpx>=0.27.0",
+    
+    # Database
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.10",
+    "alembic>=1.14.0",
+    
+    # Redis
+    "redis>=5.2.0",
+    
+    # Vector DB
+    "qdrant-client>=1.12.0",
+    
+    # LangGraph / LangChain
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-openai>=0.2.0",
+    
+    # LLM / Embeddings
+    "openai>=1.50.0",
+    "sentence-transformers>=3.2.0",
+    "torch>=2.5.0",
+    
+    # OCR / PDF
+    "pytesseract>=0.3.10",
+    "Pillow>=11.0.0",
+    "pdf2image>=1.17.0",
+    "poppler-utils>=0.1.0",
+    
+    # Utilities
+    "python-multipart>=0.0.12",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.1",
+    "tenacity>=9.0.0",
+    
+    # Validation / Testing
+    "pydantic>=2.10.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.14.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+dev-dependencies = [
+    "black>=24.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.14.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shared*", "services*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

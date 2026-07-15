@@ -1,0 +1,283 @@
+"""
+Shared Pydantic schemas used across all services.
+
+These are the canonical data contracts for:
+  - Gemma 4 structured output (ExamOutput, WritingFeedback, SpeakingFeedback)
+  - API request/response bodies
+  - Internal service-to-service communication
+
+Rule: BackendEvaluation is ALWAYS stripped before any response leaves the backend.
+"""
+from typing import List, Optional
+from pydantic import BaseModel, Field
+
+
+# ─────────────────────────────────────────────
+#  EXAM GENERATION SCHEMAS (shared by reading + listening + import)
+# ─────────────────────────────────────────────
+
+class BackendEvaluation(BaseModel):
+    """
+    Hidden evaluation data stored only in the DB.
+    NEVER serialised into a frontend response.
+    """
+    correct_answer: str = Field(description="The exact correct answer string.")
+    paragraph_anchor_id: str = Field(
+        description="Paragraph ID (e.g. 'A', 'B') where the answer evidence lives."
+    )
+    evidence_text: str = Field(
+        description="The verbatim sentence(s) from the passage that justify the answer."
+    )
+    cognitive_distractor_analysis: str = Field(
+        description="Explanation of the most tempting wrong answer and why students pick it."
+    )
+
+
+class QuestionItem(BaseModel):
+    """A single question inside a QuestionGroup."""
+    question_number: int
+    prompt_text: str
+    # For MCQ and Matching: list of options shown to the user
+    local_options: Optional[List[str]] = None
+    # Populated by Gemma; stripped before frontend response
+    backend_evaluation: BackendEvaluation
+
+
+class QuestionGroup(BaseModel):
+    """A section of questions sharing a type and instructions."""
+    group_id: str  # e.g. "group_1"
+    question_type: str = Field(
+        description=(
+            "One of: TRUE_FALSE_NOT_GIVEN | MATCHING_HEADINGS | SUMMARY_COMPLETION "
+            "| MULTIPLE_CHOICE | SENTENCE_COMPLETION | MATCHING_INFORMATION | FILL_BLANK"
+        )
+    )
+    instructions: str  # e.g. "Do the following statements agree with the information..."
+    questions: List[QuestionItem]
+
+
+class Paragraph(BaseModel):
+    """A labeled paragraph from the reading passage."""
+    paragraph_id: str  # "A", "B", "C" ...
+    text: str
+
+
+class GenerationParams(BaseModel):
+    """Parameters used when generating an exam (stored for audit/replay)."""
+    difficulty: str          # beginner | intermediate | advanced | ielts_6..9
+    vocabulary_level: str    # basic | medium | academic | c1 | c2
+    grammar_complexity: str  # simple | medium | complex | mixed
+    topic: str               # environment | science | history | technology | ...
+    passage_length_words: int
+
+
+class ExamOutput(BaseModel):
+    """
+    Top-level structured output from Gemma 4.
+    Used for: reading generation, listening generation, VLM import.
+    """
+    title: str
+    paragraphs: List[Paragraph]
+    question_groups: List[QuestionGroup]
+    generation_params: Optional[GenerationParams] = None
+
+
+# ─────────────────────────────────────────────
+#  FRONTEND-SAFE READING SCHEMAS
+#  (BackendEvaluation stripped)
+# ─────────────────────────────────────────────
+
+class QuestionItemPublic(BaseModel):
+    """Question sent to the frontend — no correct answer."""
+    id: int                         # DB primary key
+    question_number: int
+    prompt_text: str
+    local_options: Optional[List[str]] = None
+    question_type: str
+
+
+class QuestionGroupPublic(BaseModel):
+    """Question group sent to the frontend."""
+    group_id: str
+    question_type: str
+    instructions: str
+    questions: List[QuestionItemPublic]
+
+
+class GeneratedPassageResponse(BaseModel):
+    """Response returned to frontend after /reading/generate or /import/reading."""
+    passage_id: int
+    session_id: int
+    title: str
+    paragraphs: List[Paragraph]          # paragraph_id + text — used for evidence highlighting
+    question_groups: List[QuestionGroupPublic]
+    generation_params: Optional[GenerationParams] = None
+    needs_question_generation: bool = False  # True when import found no questions
+
+
+# ─────────────────────────────────────────────
+#  READING / LISTENING SUBMISSION SCHEMAS
+# ─────────────────────────────────────────────
+
+class AnswerSubmission(BaseModel):
+    """A single user answer keyed by question DB id."""
+    question_id: int
+    answer: str
+
+
+class SubmitRequest(BaseModel):
+    answers: List[AnswerSubmission]
+
+
+class QuestionExplanation(BaseModel):
+    """Per-question diagnostic returned after submission analysis."""
+    question_id: int
+    question_number: int
+    is_correct: bool
+    user_answer: str
+    correct_answer: str
+    evidence_text: str
+    evidence_paragraph_id: str
+    mistake_type: str        # Inference | Vocabulary | Distractor | Skim-Scan | None
+    why_wrong: str
+    correct_strategy: str
+    # For listening: character index in transcript where evidence starts (for TTS jump)
+    transcript_char_index: Optional[int] = None
+
+
+class SubmitAndAnalyzeResponse(BaseModel):
+    session_id: int
+    score: float
+    total: int
+    correct: int
+    band_estimate: float
+    results: List[QuestionExplanation]
+
+
+# ─────────────────────────────────────────────
+#  WRITING SCHEMAS
+# ─────────────────────────────────────────────
+
+class CriterionFeedback(BaseModel):
+    """Feedback for one IELTS writing criterion."""
+    criterion: str    # task_response | coherence | lexical | grammar
+    band: float
+    explanation: str  # 2-3 sentence explanation
+    improvement_tip: str
+
+
+class InlineCorrection(BaseModel):
+    """An inline grammar/vocabulary correction."""
+    incorrect: str
+    correct: str
+    explanation: str
+    error_type: str   # grammar | vocabulary | punctuation | spelling
+
+
+class WritingFeedback(BaseModel):
+    """Structured output from Gemma 4 for essay scoring."""
+    task_response: float
+    coherence: float
+    lexical: float
+    grammar: float
+    overall: float
+    per_criterion_feedback: List[CriterionFeedback]
+    inline_corrections: List[InlineCorrection]
+
+
+class GenerateWritingTaskRequest(BaseModel):
+    task_type: str = "task_2"   # task_1 | task_2
+    topic: Optional[str] = None
+    target_band: Optional[float] = 7.0
+
+
+class WritingTaskPublic(BaseModel):
+    id: int
+    task_type: str
+    prompt: str
+    description: Optional[str] = None
+    min_words: int
+    band_descriptor: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WritingSubmitRequest(BaseModel):
+    task_id: int
+    essay: str
+
+
+class WritingSubmitResponse(BaseModel):
+    session_id: int
+    word_count: int
+    band_estimate: float
+    feedback: WritingFeedback
+
+
+# ─────────────────────────────────────────────
+#  LISTENING GENERATION SCHEMAS
+# ─────────────────────────────────────────────
+
+class ListeningGenerationParams(BaseModel):
+    section: int = Field(ge=1, le=4, description="IELTS listening section number 1-4")
+    accent: str = "british"       # british | australian | american
+    speed: str = "normal"         # normal | exam | fast
+    topic: str = "general"
+    weakness_focus: List[str] = Field(default_factory=list)
+    question_types: List[str] = Field(
+        default_factory=lambda: ["FILL_BLANK"],
+        description="Question types to generate"
+    )
+    question_count: int = Field(default=8, ge=4, le=12)
+
+
+class TTSConfig(BaseModel):
+    """Browser SpeechSynthesis configuration sent to frontend."""
+    lang: str       # BCP-47 language tag e.g. en-GB, en-AU, en-US
+    rate: float     # 0.9 normal, 1.0 exam, 1.15 fast
+    pitch: float = 1.0
+
+
+class GeneratedListeningResponse(BaseModel):
+    """Response returned to frontend after /listening/generate."""
+    section_id: int
+    session_id: int
+    title: str
+    script: str                          # Full transcript for browser TTS
+    tts_config: TTSConfig
+    question_groups: List[QuestionGroupPublic]
+    generation_params: Optional[dict] = None
+
+
+# ─────────────────────────────────────────────
+#  SPEAKING SCHEMAS
+# ─────────────────────────────────────────────
+
+class SpeakingFeedback(BaseModel):
+    """Structured output from Gemma 4 for speaking analysis."""
+    transcript: str
+    band: float
+    fluency: float
+    lexical: float
+    grammar: float
+    pronunciation: float
+    suggestions: List[str]
+
+
+# ─────────────────────────────────────────────
+#  IMPORT SCHEMAS
+# ─────────────────────────────────────────────
+
+class ImportJobResponse(BaseModel):
+    import_id: int
+    status: str  # pending | processing | completed | failed | needs_questions
+
+
+class ImportStatusResponse(BaseModel):
+    import_id: int
+    status: str
+    passage_id: Optional[int] = None
+    session_id: Optional[int] = None
+    needs_question_generation: bool = False
+    error: Optional[str] = None
