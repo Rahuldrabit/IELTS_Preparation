@@ -54,6 +54,20 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.7)
     llm_max_tokens: int = Field(default=2048)
 
+    # OpenRouter (cloud — multi-model router)
+    openrouter_api_key: str = Field(
+        default="",
+        alias="OPENROUTER_API_KEY",
+    )
+    openrouter_model: str = Field(
+        default="google/gemma-3-27b-it",
+        alias="OPENROUTER_MODEL",
+    )
+    openrouter_max_tokens: int = Field(
+        default=4096,
+        alias="OPENROUTER_MAX_TOKENS",
+    )
+
     # Gemma 4 via Google AI SDK
     gemini_api_key: str = Field(
         default="",

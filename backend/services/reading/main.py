@@ -1,4 +1,5 @@
 """Reading Service - AI-generated passages, questions, sessions, and scoring."""
+import asyncio
 from datetime import datetime
 from typing import Optional, List
 
@@ -147,7 +148,7 @@ async def store_generated_exam(
             db.add(question)
 
     await db.commit()
-    await db.refresh(passage)
+    await db.refresh(passage, attribute_names=["questions"])
 
     return passage
 
@@ -189,6 +190,8 @@ def to_public_response(passage: ReadingPassage, session_id: int, paragraphs: lis
                     prompt_text=q.question_text,
                     local_options=q.options,
                     question_type=q.question_type,
+                    # Includes trap metadata for adversarial questions; None for standard
+                    question_evaluation=q.question_evaluation if hasattr(q, 'question_evaluation') else None,
                 )
                 for idx, q in enumerate(sorted(questions, key=lambda x: x.question_number or 0))
             ],
@@ -219,8 +222,9 @@ async def generate_reading(
         client = get_gemma_client()
         prompt = build_generation_prompt(config)
 
-        # Call Gemma 4 with structured output
-        exam: ExamOutput = client.generate_structured(
+        # Call AI with structured output (sync call — run in thread to avoid blocking event loop)
+        exam: ExamOutput = await asyncio.to_thread(
+            client.generate_structured,
             prompt=prompt,
             schema=ExamOutput,
             temperature=0.0,
@@ -602,7 +606,7 @@ Return ONLY valid JSON, no other text."""
 
     try:
         client = get_gemma_client()
-        response = client.generate_text(prompt, temperature=0.3)
+        response = await asyncio.to_thread(client.generate_text, prompt, None, 0.3)
 
         # Try to parse JSON from response
         import json
@@ -620,3 +624,154 @@ Return ONLY valid JSON, no other text."""
         "correct_strategy": "Read the relevant paragraph more carefully and look for keywords that indicate the correct answer.",
         "evidence_text": question.question_evaluation.get("evidence_text", "") if question.question_evaluation else "",
     }
+
+
+# ============ Socratic Debugging Agent ============
+# All agent logic lives in services/agents/socratic/hint_engine.py
+# This endpoint is a thin delegate — no LLM code here.
+
+@router.post("/sessions/{session_id}/socratic-hint")
+async def get_socratic_hint(
+    session_id: int,
+    request: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Socratic Debugging Agent — delegates to SocraticHintAgent.
+    Guides the student to the correct answer through structured questioning
+    without ever revealing the answer directly.
+    """
+    from services.agents.socratic import SocraticHintAgent, SocraticHintRequest, ConversationTurn
+    from services.ai_agent.gemma_client import GemmaClientError
+
+    # Validate session exists
+    result = await db.execute(
+        select(PracticeSession).where(
+            and_(PracticeSession.id == session_id, PracticeSession.skill == "reading")
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Build the typed request
+    history = [
+        ConversationTurn(role=t["role"], text=t["text"])
+        for t in request.get("conversation_history", [])
+        if t.get("role") in ("agent", "student") and t.get("text")
+    ]
+
+    typed_request = SocraticHintRequest(
+        question_text=request.get("question_text", ""),
+        correct_answer=request.get("correct_answer", ""),
+        user_answer=request.get("user_answer", ""),
+        passage_excerpt=request.get("passage_excerpt", ""),
+        question_type=request.get("question_type", "TRUE_FALSE_NOT_GIVEN"),
+        conversation_history=history,
+    )
+
+    agent = SocraticHintAgent()
+    try:
+        return await agent.get_hint(typed_request)
+    except GemmaClientError as e:
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Socratic hint failed: {str(e)}")
+
+
+# ============ Adversarial Distractor Agent ============
+# Delegates to AdversarialDistractorAgent. No LLM logic here.
+
+@router.post("/adversarial/generate")
+async def generate_adversarial(
+    request: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate an adversarial reading set targeted at the student's
+    personal cognitive blind spots (negative qualifiers, synonym traps, etc.).
+
+    Accepts a StudentWeaknessProfile and returns an AdversarialQuestionSet
+    ready to be loaded into the reading workspace.
+    """
+    from services.agents.adversarial import (
+        AdversarialDistractorAgent,
+        AdversarialGenerationRequest,
+        StudentWeaknessProfile,
+    )
+    from services.ai_agent.gemma_client import GemmaClientError
+
+    profile_data = request.get("weakness_profile", {})
+    weakness_profile = StudentWeaknessProfile(
+        wrong_question_types=profile_data.get("wrong_question_types", []),
+        distractor_patterns_fallen_for=profile_data.get("distractor_patterns_fallen_for", []),
+        low_confidence_win_topics=profile_data.get("low_confidence_win_topics", []),
+        avg_time_per_question_ms=float(profile_data.get("avg_time_per_question_ms", 0)),
+        target_band=float(profile_data.get("target_band", 7.0)),
+    )
+
+    gen_request = AdversarialGenerationRequest(
+        weakness_profile=weakness_profile,
+        topic=request.get("topic"),
+        question_type=request.get("question_type", "TRUE_FALSE_NOT_GIVEN"),
+        num_questions=min(int(request.get("num_questions", 4)), 5),
+    )
+
+    agent = AdversarialDistractorAgent()
+    try:
+        result = await agent.generate(gen_request)
+
+        # Persist the generated passage and questions as a normal session
+        # so the student can use the existing workspace UI
+        passage = ReadingPassage(
+            title=f"Adversarial Practice — {gen_request.question_type.replace('_', ' ').title()}",
+            content=result.passage,
+            word_count=len(result.passage.split()),
+            difficulty="adversarial",
+        )
+        db.add(passage)
+        await db.flush()
+
+        for idx, q in enumerate(result.questions):
+            question = ReadingQuestion(
+                passage_id=passage.id,
+                question_text=q.question_text,
+                question_type=gen_request.question_type,
+                group_id="adversarial_group",
+                question_number=idx + 1,
+                options=q.answer_options,
+                correct_answer=q.correct_answer,
+                explanation=q.trap_explanation,
+                question_evaluation={
+                    "evidence_text": q.evidence_paragraph_hint,
+                    "paragraph_anchor_id": "",
+                    "trap_type": q.trap_type,
+                    "trap_explanation": q.trap_explanation,
+                    "cognitive_distractor_analysis": q.trap_explanation,
+                },
+            )
+            db.add(question)
+
+        session = PracticeSession(
+            user_id=1,
+            skill="reading",
+            passage_id=passage.id,
+            started_at=datetime.utcnow(),
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+        await db.refresh(passage)
+
+        return {
+            "session_id": session.id,
+            "passage_id": passage.id,
+            "trap_summary": result.trap_summary,
+            "difficulty_label": result.difficulty_label,
+            "question_count": len(result.questions),
+        }
+
+    except GemmaClientError as e:
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Adversarial generation failed: {str(e)}")

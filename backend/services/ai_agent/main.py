@@ -1,4 +1,5 @@
 """AI Agent Service - LLM client, embeddings, and LangGraph agent pipelines."""
+import asyncio
 import json
 import os
 import tempfile
@@ -379,10 +380,70 @@ Return the output matching the ExamOutput schema."""
 
     try:
         client = get_gemma_client()
-        result = client.generate_structured(prompt, schema=ExamOutput)
+        result = await asyncio.to_thread(client.generate_structured, prompt, ExamOutput)
         return result.model_dump()
     except GemmaClientError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ Speaking Topic Generation ============
+
+
+class GenerateSpeakingTopicRequest(BaseModel):
+    part: int = 2  # IELTS speaking part (1, 2, or 3)
+    theme: Optional[str] = None  # Optional theme/category
+
+
+class SpeakingTopic(BaseModel):
+    part: int
+    topic: str
+    bullet_points: list[str]
+    follow_up: Optional[str] = None
+
+
+@router.post("/generate-speaking-topic")
+async def generate_speaking_topic(request: GenerateSpeakingTopicRequest):
+    """Generate a random IELTS speaking cue card topic using AI."""
+    theme_hint = f" related to: {request.theme}" if request.theme else ""
+
+    prompt = f"""Generate a realistic IELTS Speaking Part {request.part} cue card topic{theme_hint}.
+
+For Part 1: Generate a simple question about everyday life.
+For Part 2: Generate a topic card with 3-4 bullet point prompts (You should say: ...).
+For Part 3: Generate a deeper discussion question related to the Part 2 topic.
+
+Return JSON:
+{{
+  "part": {request.part},
+  "topic": "The main topic/question text",
+  "bullet_points": ["point 1", "point 2", "point 3"],
+  "follow_up": "An optional follow-up question (for Part 3)"
+}}
+
+Return ONLY valid JSON."""
+
+    try:
+        client = get_gemma_client()
+        result = await asyncio.to_thread(
+            client.generate_structured,
+            prompt=prompt,
+            schema=SpeakingTopic,
+            temperature=0.8,
+        )
+        return result.model_dump()
+    except GemmaClientError as e:
+        # Fallback topic
+        return SpeakingTopic(
+            part=request.part,
+            topic="Describe a skill you would like to learn. You should say:",
+            bullet_points=[
+                "what the skill is",
+                "why you want to learn it",
+                "how you would learn it",
+                "and explain how this skill would help you",
+            ],
+            follow_up="Do you think it's important for people to keep learning new skills?",
+        ).model_dump()
 
 
 # ============ Speaking Transcription & Analysis ============
@@ -421,7 +482,7 @@ List exactly 3 specific improvement suggestions.
 
 Return JSON matching the SpeakingFeedback schema."""
 
-        transcript = client.transcribe_audio(tmp_path, prompt=analysis_prompt)
+        transcript = await asyncio.to_thread(client.transcribe_audio, tmp_path, analysis_prompt)
 
         # Step 2: If the response contains structured data, try to parse it
         # The transcription may include the analysis in one response
@@ -442,7 +503,8 @@ Score on Fluency, Lexical Resource, Grammar, and Pronunciation (each 1-9).
 Give overall band and 3 improvement suggestions.
 Return JSON matching SpeakingFeedback schema."""
 
-                feedback = client.generate_structured(
+                feedback = await asyncio.to_thread(
+                    client.generate_structured,
                     prompt=score_prompt,
                     schema=SpeakingFeedback,
                     temperature=0.3,
@@ -475,3 +537,237 @@ Return JSON matching SpeakingFeedback schema."""
             os.unlink(tmp_path)
         except Exception:
             pass
+
+
+# ============ Language Mutation Engine ============
+
+
+class MutationTier(BaseModel):
+    tier: int                   # 1, 2, or 3
+    band_label: str             # "Band 6.5 — Core", etc.
+    target_band: float          # 6.5, 7.5, 8.5
+    text: str                   # upgraded response text
+    key_changes: list[str]      # exactly 3 bullet points
+    audio_hints: str            # pronunciation / rhythm guidance
+
+
+class MutationGenerationRequest(BaseModel):
+    transcript: str
+    original_band: float = 6.0
+
+
+class MutationGenerationResponse(BaseModel):
+    original_transcript: str
+    identified_fillers: list[str]
+    tiers: list[MutationTier]   # always exactly 3
+
+
+@router.post("/generate-mutations")
+async def generate_mutations(request: MutationGenerationRequest):
+    """
+    Generate 3 language mutation tiers from a speaking transcript.
+    Tier 1 = Band 6.5 (vocabulary upgrade)
+    Tier 2 = Band 7.5 (structural restructure)
+    Tier 3 = Band 8.5 (nominalization, inverted conditionals, idioms)
+    """
+    prompt = f"""You are an IELTS Speaking examiner. A student gave this response:
+
+TRANSCRIPT:
+{request.transcript}
+
+CURRENT ESTIMATED BAND: {request.original_band}
+
+Generate exactly 3 mutation tiers upgrading the student's response:
+
+TIER 1 (Band 6.5 — Core):
+- Replace simple words with accurate academic equivalents only
+- Keep sentence structure mostly unchanged
+- Remove filled pauses ("um", "uh", "like", "you know")
+- List exactly 3 key changes made
+
+TIER 2 (Band 7.5 — Advanced):
+- Restructure sentences using subordinate clauses, parallel structures, relative clauses
+- Add discourse markers and cohesive devices ("Furthermore", "In contrast", etc.)
+- Expand vocabulary to idiomatic academic range
+- List exactly 3 key changes made
+
+TIER 3 (Band 8.5 — Mastery):
+- Introduce nominalization patterns (e.g. "the rapid deterioration of" instead of "things got worse quickly")
+- Use inverted conditionals where appropriate ("Were this to continue…")
+- Add idiomatic phrasing and sophisticated hedging language ("It could be argued that…")
+- List exactly 3 key changes made
+
+Also identify any filler words ("um", "uh", "like", "you know") found in the original transcript.
+
+For audio_hints in each tier: give a 1-sentence note on word stress or connected speech for that tier.
+
+Return JSON exactly matching this structure:
+{{
+  "original_transcript": "...",
+  "identified_fillers": ["um", "uh"],
+  "tiers": [
+    {{
+      "tier": 1,
+      "band_label": "Band 6.5 — Core",
+      "target_band": 6.5,
+      "text": "...",
+      "key_changes": ["change1", "change2", "change3"],
+      "audio_hints": "..."
+    }},
+    {{
+      "tier": 2,
+      "band_label": "Band 7.5 — Advanced",
+      "target_band": 7.5,
+      "text": "...",
+      "key_changes": ["change1", "change2", "change3"],
+      "audio_hints": "..."
+    }},
+    {{
+      "tier": 3,
+      "band_label": "Band 8.5 — Mastery",
+      "target_band": 8.5,
+      "text": "...",
+      "key_changes": ["change1", "change2", "change3"],
+      "audio_hints": "..."
+    }}
+  ]
+}}"""
+
+    try:
+        client = get_gemma_client()
+        result = client.generate_structured(
+            prompt=prompt,
+            schema=MutationGenerationResponse,
+            temperature=0.4,
+        )
+        # Enforce exactly 3 tiers even if model returns fewer
+        if len(result.tiers) != 3:
+            raise ValueError(f"Expected 3 tiers, got {len(result.tiers)}")
+        return result
+    except GemmaClientError as e:
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Mutation generation failed: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+#  Shadowing Assessment
+# ─────────────────────────────────────────────
+
+class ShadowingAssessmentResponse(BaseModel):
+    passed: bool
+    phoneme_accuracy: float       # 0.0–1.0
+    rhythm_score: float           # 0.0–1.0
+    connected_speech_score: float # 0.0–1.0
+    overall_similarity: float     # average of the three
+    feedback: str
+    specific_errors: list[str]    # up to 3 specific issues
+
+
+@router.post("/assess-shadowing")
+async def assess_shadowing(
+    audio: UploadFile = File(...),
+    target_tier_text: str = Form(...),
+    target_band: float = Form(7.5),
+):
+    """
+    Assess a student's shadowing recording against a target mutation tier.
+    Accepts multipart/form-data: audio file + target_tier_text + target_band.
+    Returns ShadowingAssessmentResponse. passed=True only when
+    phoneme_accuracy >= 0.75 AND rhythm_score >= 0.70 (enforced server-side).
+    """
+    suffix = ".webm"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(await audio.read())
+        tmp_path = tmp.name
+
+    try:
+        client = get_gemma_client()
+
+        # Step 1: Transcribe the shadowing attempt
+        user_transcript = client.transcribe_audio(
+            tmp_path,
+            prompt="Transcribe this speech recording accurately."
+        )
+
+        # Step 2: Compare against target text
+        comparison_prompt = f"""Compare this student's spoken response against the target text.
+
+TARGET TEXT (Band {target_band}):
+{target_tier_text}
+
+STUDENT'S TRANSCRIBED SPEECH:
+{user_transcript}
+
+Evaluate on three dimensions (each 0.0–1.0):
+1. phoneme_accuracy — How accurately were words pronounced? (compare word-by-word)
+2. rhythm_score — Did natural stress and intonation match the target?
+3. connected_speech_score — Were words linked naturally (elision, linking)?
+
+List up to 3 specific errors: exact word/phrase that was wrong and why.
+Write a 2-sentence feedback message addressed to the student.
+
+PASS CRITERIA: phoneme_accuracy >= 0.75 AND rhythm_score >= 0.70
+
+Return JSON:
+{{
+  "passed": false,
+  "phoneme_accuracy": 0.0,
+  "rhythm_score": 0.0,
+  "connected_speech_score": 0.0,
+  "overall_similarity": 0.0,
+  "feedback": "...",
+  "specific_errors": ["error1", "error2", "error3"]
+}}"""
+
+        result = client.generate_structured(
+            prompt=comparison_prompt,
+            schema=ShadowingAssessmentResponse,
+            temperature=0.2,
+        )
+
+        # Enforce pass criteria server-side — model output is advisory only
+        result.passed = (
+            result.phoneme_accuracy >= 0.75
+            and result.rhythm_score >= 0.70
+        )
+        result.overall_similarity = round(
+            (result.phoneme_accuracy + result.rhythm_score + result.connected_speech_score) / 3, 2
+        )
+
+        return result
+
+    except GemmaClientError as e:
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Shadowing assessment failed: {str(e)}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
+# ============ Council of Judges ============
+
+
+@router.post("/council-evaluate")
+async def council_evaluate(request: WritingScoreRequest):
+    """
+    Run the full Council of Judges multi-agent evaluation pipeline.
+    Returns per-agent verdicts + Chief Examiner reconciliation.
+    Falls back to single-agent scoring if council fails.
+    """
+    from services.agents.council import run_council, CouncilReport
+
+    try:
+        report: CouncilReport = await run_council(
+            essay=request.essay,
+            task_type=request.task_type,
+            target_band=7.0,
+        )
+        return report.model_dump()
+    except GemmaClientError as e:
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Council evaluation failed: {str(e)}")

@@ -15,6 +15,9 @@ from services.grammar.main import router as grammar_router
 from services.import_svc.main import router as import_router
 from services.analytics.main import router as analytics_router
 from services.ai_agent.main import router as ai_agent_router
+from services.agents.router import router as agents_router
+# Importing the agents package triggers all @registry.register decorators
+import services.agents  # noqa: F401
 
 
 @asynccontextmanager
@@ -59,6 +62,7 @@ app.include_router(grammar_router, prefix="/api")
 app.include_router(import_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(ai_agent_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
 
 
 if __name__ == "__main__":

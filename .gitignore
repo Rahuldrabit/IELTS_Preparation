@@ -131,3 +131,6 @@ secrets/
 credentials/
 *.keystore
 *.jks
+
+IMPLEMENTATION_SUMMARY.md
+FUTURE_IMPLEMENTATION.md

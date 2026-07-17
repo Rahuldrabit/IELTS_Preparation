@@ -38,6 +38,22 @@ class User(Base):
     daily_goal: Mapped[int] = mapped_column(Integer, default=5)
     tasks_completed: Mapped[int] = mapped_column(Integer, default=0)
     streak: Mapped[int] = mapped_column(Integer, default=0)
+    # Stores user's feature flag preferences (JSON, nullable — defaults to all-off)
+    features_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Stores the latest Uma intervention from the Autonomous Syllabus Curating Agent
+    ava_intervention: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    # ── Onboarding fields ────────────────────────────────────────────────────────
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    native_language: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    occupation: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    education_level: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    ielts_module: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # academic | general
+    reason_for_ielts: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    focus_skills: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # e.g. ["reading", "writing"]
+    study_hours_per_day: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

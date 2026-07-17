@@ -1,4 +1,5 @@
 """Listening Service — AI-generated scripts, questions, sessions, browser TTS, scoring."""
+import asyncio
 import json
 from datetime import datetime
 from typing import Optional, List
@@ -236,7 +237,7 @@ Return ONLY valid JSON, no other text."""
 
     try:
         client = get_gemma_client()
-        response = client.generate_text(prompt, temperature=0.3)
+        response = await asyncio.to_thread(client.generate_text, prompt, None, 0.3)
         if "{" in response:
             start = response.find("{")
             end = response.rfind("}") + 1
@@ -265,7 +266,8 @@ async def generate_listening(
         client = get_gemma_client()
         prompt = _build_generation_prompt(config)
 
-        exam: ExamOutput = client.generate_structured(
+        exam: ExamOutput = await asyncio.to_thread(
+            client.generate_structured,
             prompt=prompt,
             schema=ExamOutput,
             temperature=0.0,
@@ -463,4 +465,65 @@ async def submit_and_analyze(
         correct=correct_count,
         band_estimate=band_estimate,
         results=results,
+    )
+
+
+# ============ Acoustic Destabilization — Impulse Response Endpoint ============
+
+
+@router.get("/audio/impulse-response")
+async def get_impulse_response():
+    """
+    Serve a synthetic room impulse response (IR) as a WAV file.
+    Used by the browser Web Audio ConvolverNode for Level 2 exam-room simulation.
+    Cached for 24h — the IR never changes between requests.
+    """
+    import struct
+    import math
+    import random
+
+    sample_rate = 44100
+    duration_sec = 2.0
+    num_samples = int(sample_rate * duration_sec)
+
+    # Generate exponential-decay pink-noise IR
+    # amplitude * exp(-t * decay) * noise
+    decay = 3.0
+    random.seed(42)  # deterministic so caching is valid
+    samples_16bit: list[int] = []
+    for i in range(num_samples):
+        t = i / sample_rate
+        amplitude = math.exp(-t * decay)
+        noise = random.uniform(-1.0, 1.0)
+        sample_f = amplitude * noise * 0.8          # keep headroom
+        # Clamp and convert to 16-bit signed integer
+        clamped = max(-1.0, min(1.0, sample_f))
+        samples_16bit.append(int(clamped * 32767))
+
+    # Build WAV file bytes (44-byte header + PCM data)
+    data_size = num_samples * 2   # 16-bit = 2 bytes per sample
+    header = struct.pack(
+        '<4sI4s4sIHHIIHH4sI',
+        b'RIFF',
+        36 + data_size,           # file size - 8
+        b'WAVE',
+        b'fmt ',
+        16,                       # PCM chunk size
+        1,                        # PCM format
+        1,                        # mono
+        sample_rate,
+        sample_rate * 2,          # byte rate
+        2,                        # block align
+        16,                       # bits per sample
+        b'data',
+        data_size,
+    )
+    pcm_data = struct.pack(f'<{num_samples}h', *samples_16bit)
+    wav_bytes = header + pcm_data
+
+    from fastapi.responses import Response
+    return Response(
+        content=wav_bytes,
+        media_type="audio/wav",
+        headers={"Cache-Control": "max-age=86400"},
     )

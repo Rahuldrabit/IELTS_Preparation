@@ -119,7 +119,8 @@ async def process_import_job_vlm(import_id: int, file_paths: list[str], db_url: 
                     continue
 
                 try:
-                    exam: ExamOutput = client.generate_structured(
+                    exam: ExamOutput = await asyncio.to_thread(
+                        client.generate_structured,
                         prompt=prompt,
                         schema=ExamOutput,
                         image_path=path,
