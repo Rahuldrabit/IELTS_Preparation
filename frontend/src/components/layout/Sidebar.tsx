@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Sparkles,
   FlaskConical,
+  Trophy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/lib/store'
@@ -41,6 +42,7 @@ const navigation = [
     name: 'Practice Center', 
     icon: GraduationCap,
     children: [
+      { name: 'Mock Test', href: '/practice/mock-test', icon: Trophy },
       { name: 'Reading', href: '/practice/reading', icon: BookOpen },
       { name: 'Listening', href: '/practice/listening', icon: Headphones },
       { name: 'Speaking', href: '/practice/speaking', icon: Mic },

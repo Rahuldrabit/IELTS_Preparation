@@ -30,10 +30,21 @@ from services.agents.adversarial import (
     AdversarialQuestionSet,
     StudentWeaknessProfile,
 )
+from services.agents.registry import registry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
+
+
+# ─────────────────────────────────────────────
+#  Registry Inspection
+# ─────────────────────────────────────────────
+
+@router.get("/registry")
+async def list_agents():
+    """Return all agent names currently registered in the global AgentRegistry."""
+    return {"agents": registry.all_names()}
 
 
 # ─────────────────────────────────────────────

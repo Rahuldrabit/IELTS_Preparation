@@ -1,0 +1,81 @@
+{
+  "module_id": 1,
+  "module_name": "Foundations",
+  "description": "Basic sentence structure and parts of speech",
+  "topics": [
+    {
+      "topic_id": 1,
+      "topic_name": "Parts of Speech",
+      "description": "Nouns, verbs, adjectives, adverbs, prepositions, conjunctions, interjections",
+      "order": 1,
+      "prerequisites": [],
+      "rules": [
+        {
+          "rule_id": "foundations_1_1",
+          "rule": "Nouns name people, places, things, or ideas.",
+          "example": "The teacher explained the concept.",
+          "ielts_usage": "Use specific nouns in Academic Writing for clarity."
+        },
+        {
+          "rule_id": "foundations_1_2", 
+          "rule": "Verbs express actions or states of being.",
+          "example": "Students study every day.",
+          "ielts_usage": "Use precise verbs to strengthen Task 2 arguments."
+        }
+      ],
+      "examples": {
+        "easy": [
+          "The cat sleeps.",
+          "She reads books."
+        ],
+        "medium": [
+          "The diligent student consistently completes assignments.",
+          "Environmental pollution has become a global concern."
+        ],
+        "ielts": [
+          "Government investment in public transportation reduces traffic congestion and lowers carbon emissions.",
+          "The rapid development of technology has transformed communication methods significantly."
+        ],
+        "academic": [
+          "The implementation of evidence-based pedagogical approaches enhances student learning outcomes.",
+          "A comprehensive analysis of demographic trends reveals significant socio-economic implications."
+        ]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "He good at playing guitar.",
+          "correct": "He is good at playing guitar.",
+          "explanation": "Missing verb 'is' before adjective 'good'."
+        }
+      ]
+    },
+    {
+      "topic_id": 2,
+      "topic_name": "Sentence Structure",
+      "description": "Subject, predicate, objects, complements, modifiers",
+      "order": 2,
+      "prerequisites": [1],
+      "rules": [
+        {
+          "rule_id": "foundations_2_1",
+          "rule": "Every complete sentence must have a subject and a predicate.",
+          "example": "The experiment (subject) yielded interesting results (predicate).",
+          "ielts_usage": "Avoid sentence fragments in academic writing."
+        }
+      ],
+      "examples": {
+        "easy": ["Birds fly.", "The sun shines."],
+        "medium": ["The research team conducted an extensive literature review.", "Urban planning requires careful consideration of multiple factors."],
+        "ielts": ["Effective time management enables students to balance academic and personal responsibilities successfully.", "The proliferation of social media platforms has fundamentally altered interpersonal communication patterns."],
+        "academic": ["Methodological rigor in empirical research necessitates transparent documentation of data collection procedures.", "Conceptual frameworks provide theoretical scaffolding for analyzing complex social phenomena."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "Because of the bad weather.",
+          "correct": "The event was cancelled because of the bad weather.",
+          "explanation": "Incomplete sentence - missing main clause."
+        }
+      ]
+    }
+  ]
+}

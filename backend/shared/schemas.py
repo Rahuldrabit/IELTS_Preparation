@@ -147,6 +147,9 @@ class QuestionExplanation(BaseModel):
     """Per-question diagnostic returned after submission analysis."""
     question_id: int
     question_number: int
+    question_text: str                       # The question prompt shown to user
+    question_type: str                       # TRUE_FALSE_NOT_GIVEN, MULTIPLE_CHOICE, etc.
+    options: Optional[List[str]] = None      # Available options for MCQ (null for non-MCQ)
     is_correct: bool
     user_answer: str
     correct_answer: str

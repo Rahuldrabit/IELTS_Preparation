@@ -65,6 +65,7 @@ All services are mounted under `/api` prefix:
 | `/api/import` | OCR processing for exam import |
 | `/api/analytics` | Progress, predictions |
 | `/api/agent` | AI chat, scoring, vocab enrichment |
+| `/api/telemetry` | Cognitive telemetry: gaze, attention, behavioral analytics |
 
 ## Example Calls
 
@@ -121,7 +122,10 @@ services/
 ├── grammar/      # Grammar skills tracking
 ├── import_svc/   # OCR exam import
 ├── analytics/    # Progress & predictions
-└── ai_agent/     # LangGraph agents for AI features
+├── ai_agent/     # LangGraph agents for AI features
+├── agents/       # Multi-agent system (council, socratic, adversarial, syllabus)
+├── mocktest/     # Full IELTS mock test generation & evaluation
+└── telemetry/    # Cognitive Telemetry Engine (eye tracking, attention, behavior)
 ```
 
 ## Development

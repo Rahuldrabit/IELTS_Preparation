@@ -21,7 +21,7 @@ export function RecentMistakesWidget() {
   
   const allMistakes = isLoading
     ? []
-    : (topics || []).reduce((acc, topic) => {
+    : (topics || []).reduce((acc: GrammarMistakeSchema[], topic: any) => {
         if (topic.mistakes) {
           acc.push(...topic.mistakes.slice(0, 1))
         }

@@ -62,7 +62,7 @@ test("GET", "/writing/tasks")
 # ─── Listening Service ───
 print("\n[Listening Service]")
 # No GET list endpoint; generation is slow. Test the OPTIONS to verify route exists.
-test("POST", "/listening/generate", expected_status=422, json_body={}, label="POST /listening/generate (validation check)")
+test("POST", "/listening/generate", expected_status=422, json_body={"section": 99}, label="POST /listening/generate (validation check)")
 
 # ─── Vocabulary Service ───
 print("\n[Vocabulary Service]")

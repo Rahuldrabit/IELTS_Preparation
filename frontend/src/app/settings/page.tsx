@@ -2,49 +2,42 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Settings, User, Bell, Shield, Trash2, Save, Check, Loader2 } from 'lucide-react'
+import { Settings, User, Bell, Shield, Trash2, Save, Check, Loader2, Target, BookOpen, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { profileApi } from '@/lib/services/profile'
+import { cn } from '@/lib/utils'
+import { profileApi, type UserProfile } from '@/lib/services/profile'
 import { fadeInUp } from '@/lib/animations'
+
+const ALL_SKILLS = ['reading', 'writing', 'listening', 'speaking'] as const
+const EDUCATION_LEVELS = ['high_school', 'bachelors', 'masters', 'phd'] as const
+const IELTS_MODULES = ['academic', 'general'] as const
+const REASON_OPTIONS = ['immigration', 'university', 'career', 'other'] as const
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    currentBand: 5.5,
-    targetBand: 7.0,
-    examDate: '',
-    dailyGoal: 5,
-  })
+  const [profile, setProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     profileApi.getProfile().then((data) => {
-      setProfile({
-        name: data.name || '',
-        email: data.email || '',
-        currentBand: data.current_band,
-        targetBand: data.target_band,
-        examDate: data.exam_date || '',
-        dailyGoal: data.daily_goal,
-      })
+      setProfile(data)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const handleSave = async () => {
+    if (!profile) return
     setSaving(true)
     try {
       await profileApi.updateProfile({
         name: profile.name,
-        target_band: profile.targetBand,
-        exam_date: profile.examDate || undefined,
-        daily_goal: profile.dailyGoal,
+        target_band: profile.target_band,
+        exam_date: profile.exam_date || undefined,
+        daily_goal: profile.daily_goal,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -53,6 +46,14 @@ export default function SettingsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (loading || !profile) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
@@ -74,10 +75,14 @@ export default function SettingsPage() {
         transition={{ delay: 0.1 }}
       >
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-4">
+          <TabsList className="grid w-full max-w-lg grid-cols-5">
             <TabsTrigger value="profile" className="gap-2">
               <User className="h-4 w-4" />
               Profile
+            </TabsTrigger>
+            <TabsTrigger value="personalization" className="gap-2">
+              <Target className="h-4 w-4" />
+              Goals
             </TabsTrigger>
             <TabsTrigger value="preferences" className="gap-2">
               <Settings className="h-4 w-4" />
@@ -103,7 +108,7 @@ export default function SettingsPage() {
                 {/* Avatar */}
                 <div className="flex items-center gap-6">
                   <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-2xl font-bold">
-                    {profile.name[0]}
+                    {profile.name?.[0] || 'U'}
                   </div>
                   <div>
                     <Button variant="outline" size="sm">Change Avatar</Button>
@@ -135,8 +140,8 @@ export default function SettingsPage() {
                       step="0.5"
                       min="1"
                       max="9"
-                      value={profile.currentBand}
-                      onChange={(e) => setProfile({ ...profile, currentBand: parseFloat(e.target.value) })}
+                      value={profile.current_band}
+                      onChange={(e) => setProfile({ ...profile, current_band: parseFloat(e.target.value) })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -146,16 +151,16 @@ export default function SettingsPage() {
                       step="0.5"
                       min="1"
                       max="9"
-                      value={profile.targetBand}
-                      onChange={(e) => setProfile({ ...profile, targetBand: parseFloat(e.target.value) })}
+                      value={profile.target_band}
+                      onChange={(e) => setProfile({ ...profile, target_band: parseFloat(e.target.value) })}
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Exam Date</label>
                     <Input
                       type="date"
-                      value={profile.examDate}
-                      onChange={(e) => setProfile({ ...profile, examDate: e.target.value })}
+                      value={profile.exam_date || ''}
+                      onChange={(e) => setProfile({ ...profile, exam_date: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -164,9 +169,161 @@ export default function SettingsPage() {
                       type="number"
                       min="1"
                       max="10"
-                      value={profile.dailyGoal}
-                      onChange={(e) => setProfile({ ...profile, dailyGoal: parseInt(e.target.value) })}
+                      value={profile.daily_goal}
+                      onChange={(e) => setProfile({ ...profile, daily_goal: parseInt(e.target.value) })}
                     />
+                  </div>
+                </div>
+
+                <Button onClick={handleSave} disabled={saving} className="w-full md:w-auto">
+                  {saved ? (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Saved!
+                    </>
+                  ) : saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Goals/Personalization Tab */}
+          <TabsContent value="personalization">
+            <Card>
+              <CardHeader>
+                <CardTitle>Personalization</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Background Info */}
+                <div className="space-y-4">
+                  <h3 className="font-medium text-lg">Background Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Native Language</label>
+                      <Input
+                        value={profile.native_language || ''}
+                        onChange={(e) => setProfile({ ...profile, native_language: e.target.value })}
+                        placeholder="e.g., Chinese, Spanish, Arabic"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Occupation</label>
+                      <Input
+                        value={profile.occupation || ''}
+                        onChange={(e) => setProfile({ ...profile, occupation: e.target.value })}
+                        placeholder="e.g., Student, Engineer"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Education Level</label>
+                      <select
+                        className="w-full p-2.5 rounded-lg border bg-background text-sm"
+                        value={profile.education_level || ''}
+                        onChange={(e) => setProfile({ ...profile, education_level: e.target.value })}
+                      >
+                        <option value="">Select...</option>
+                        {EDUCATION_LEVELS.map((level) => (
+                          <option key={level} value={level}>
+                            {level.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Study Hours per Day</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={profile.study_hours_per_day || ''}
+                        onChange={(e) => setProfile({ ...profile, study_hours_per_day: parseInt(e.target.value) || undefined })}
+                        placeholder="e.g., 2"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-border" />
+
+                {/* IELTS Goals */}
+                <div className="space-y-4">
+                  <h3 className="font-medium text-lg">IELTS Goals</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">IELTS Module</label>
+                      <select
+                        className="w-full p-2.5 rounded-lg border bg-background text-sm"
+                        value={profile.ielts_module || ''}
+                        onChange={(e) => setProfile({ ...profile, ielts_module: e.target.value })}
+                      >
+                        <option value="">Select...</option>
+                        {IELTS_MODULES.map((module) => (
+                          <option key={module} value={module}>
+                            {module.charAt(0).toUpperCase() + module.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Reason for IELTS</label>
+                      <select
+                        className="w-full p-2.5 rounded-lg border bg-background text-sm"
+                        value={profile.reason_for_ielts || ''}
+                        onChange={(e) => setProfile({ ...profile, reason_for_ielts: e.target.value })}
+                      >
+                        <option value="">Select...</option>
+                        {REASON_OPTIONS.map((reason) => (
+                          <option key={reason} value={reason}>
+                            {reason.charAt(0).toUpperCase() + reason.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-border" />
+
+                {/* Focus Skills */}
+                <div className="space-y-4">
+                  <h3 className="font-medium text-lg">Focus Skills</h3>
+                  <p className="text-sm text-muted-foreground">Select the skills you want to prioritize in your AI-guided journey</p>
+                  <div className="flex flex-wrap gap-3">
+                    {ALL_SKILLS.map((skill) => {
+                      const isSelected = profile.focus_skills?.includes(skill)
+                      return (
+                        <button
+                          key={skill}
+                          onClick={() => {
+                            const current = profile.focus_skills || []
+                            const updated = isSelected
+                              ? current.filter((s) => s !== skill)
+                              : [...current, skill]
+                            setProfile({ ...profile, focus_skills: updated })
+                          }}
+                          className={cn(
+                            'flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-all',
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border hover:border-primary/30'
+                          )}
+                        >
+                          <BookOpen className="h-4 w-4" />
+                          <span className="capitalize">{skill}</span>
+                          {isSelected && <Check className="h-4 w-4 ml-1" />}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 

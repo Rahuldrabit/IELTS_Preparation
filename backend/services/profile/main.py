@@ -31,6 +31,15 @@ class UserProfile(BaseModel):
     daily_goal: int
     tasks_completed: int
     streak: int
+    # Onboarding / Personalization
+    onboarding_completed: bool
+    native_language: Optional[str] = None
+    occupation: Optional[str] = None
+    education_level: Optional[str] = None  # high_school | bachelors | masters | phd
+    ielts_module: Optional[str] = None  # academic | general
+    reason_for_ielts: Optional[str] = None  # immigration | university | career | other
+    focus_skills: Optional[list[str]] = None  # ["reading", "writing", "listening", "speaking"]
+    study_hours_per_day: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -118,6 +127,14 @@ async def get_profile(db: AsyncSession = Depends(get_db)):
         daily_goal=user.daily_goal,
         tasks_completed=user.tasks_completed,
         streak=user.streak,
+        onboarding_completed=user.onboarding_completed,
+        native_language=user.native_language,
+        occupation=user.occupation,
+        education_level=user.education_level,
+        ielts_module=user.ielts_module,
+        reason_for_ielts=user.reason_for_ielts,
+        focus_skills=user.focus_skills,
+        study_hours_per_day=user.study_hours_per_day,
     )
 
 

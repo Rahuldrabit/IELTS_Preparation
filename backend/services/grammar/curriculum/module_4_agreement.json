@@ -1,0 +1,35 @@
+{
+  "module_id": 4,
+  "module_name": "Subject-Verb Agreement",
+  "description": "Singular vs plural, collective nouns, quantifiers",
+  "topics": [
+    {
+      "topic_id": 6,
+      "topic_name": "Basic Agreement",
+      "description": "Matching singular/plural subjects with verbs",
+      "order": 1,
+      "prerequisites": [1],
+      "rules": [
+        {
+          "rule_id": "agreement_1_1",
+          "rule": "Singular subjects take singular verbs; plural subjects take plural verbs.",
+          "example": "The student studies hard. The students study hard.",
+          "ielts_usage": "Subject-verb agreement errors are penalized in Writing and Speaking."
+        }
+      ],
+      "examples": {
+        "easy": ["The cat sleeps.", "The dogs bark."],
+        "medium": ["The research methodology incorporates multiple data sources.", "Statistical analyses reveal significant correlations."],
+        "ielts": ["Government investment in renewable energy sources reduces carbon emissions significantly.", "Public awareness campaigns about environmental issues have increased in recent years."],
+        "academic": ["The theoretical framework underpinning this study derives from constructivist epistemology.", "Methodological considerations in qualitative research include researcher reflexivity and ethical protocols."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The list of items are on the table.",
+          "correct": "The list of items is on the table.",
+          "explanation": "'List' is the subject, not 'items'."
+        }
+      ]
+    }
+  ]
+}

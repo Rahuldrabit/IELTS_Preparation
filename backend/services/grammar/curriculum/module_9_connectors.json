@@ -1,0 +1,114 @@
+{
+  "module_id": 9,
+  "module_name": "Connectors",
+  "description": "Discourse markers and linking words for cohesion",
+  "topics": [
+    {
+      "topic_id": 17,
+      "topic_name": "Contrast Connectors",
+      "description": "Although, however, despite, whereas, nevertheless, on the other hand",
+      "order": 1,
+      "prerequisites": [11],
+      "rules": [
+        {
+          "rule_id": "conn_1_1",
+          "rule": "Although/Though + clause (subordinating conjunction): begins a dependent clause.",
+          "example": "Although the cost is high, the benefits are substantial.",
+          "ielts_usage": "Use 'although' to introduce counter-arguments in balanced essays."
+        },
+        {
+          "rule_id": "conn_1_2",
+          "rule": "However (adverb): connects two independent sentences. Usually followed by a comma.",
+          "example": "The economy grew. However, unemployment remained high.",
+          "ielts_usage": "Use 'however' to introduce contrasting evidence in body paragraphs."
+        },
+        {
+          "rule_id": "conn_1_3",
+          "rule": "Despite/In spite of + noun/gerund (preposition): introduces a contrasting fact.",
+          "example": "Despite the challenges, the project succeeded.",
+          "ielts_usage": "Use 'despite' for concise contrast without creating a full clause."
+        }
+      ],
+      "examples": {
+        "easy": ["Although it was cold, she went out.", "He is rich. However, he is not happy."],
+        "medium": ["Despite the economic downturn, consumer confidence remained stable.", "Whereas urban areas have adequate healthcare, rural regions face significant shortages."],
+        "ielts": ["Although technology has created new employment opportunities, it has simultaneously rendered many traditional jobs obsolete.", "Despite substantial investment in renewable energy, fossil fuels continue to dominate the global energy mix."],
+        "academic": ["Notwithstanding the methodological limitations, the findings contribute meaningfully to the existing literature.", "Whereas quantitative approaches prioritise generalisability, qualitative methods offer depth of understanding."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "Although he was tired, but he continued working.",
+          "correct": "Although he was tired, he continued working.",
+          "explanation": "Never combine 'although' with 'but' — they both signal contrast."
+        },
+        {
+          "incorrect": "Despite he was tired, he continued.",
+          "correct": "Despite being tired, he continued.",
+          "explanation": "'Despite' is a preposition — follow it with a noun or gerund, not a clause."
+        }
+      ]
+    },
+    {
+      "topic_id": 18,
+      "topic_name": "Cause & Effect Connectors",
+      "description": "Therefore, consequently, as a result, due to, owing to",
+      "order": 2,
+      "prerequisites": [17],
+      "rules": [
+        {
+          "rule_id": "conn_2_1",
+          "rule": "Therefore/Consequently/As a result (adverbs): show results. Connect two independent sentences.",
+          "example": "Pollution increased. Consequently, public health deteriorated.",
+          "ielts_usage": "Use causal connectors to show logical flow in Writing Task 2 arguments."
+        },
+        {
+          "rule_id": "conn_2_2",
+          "rule": "Due to/Owing to + noun (prepositions): introduce reasons.",
+          "example": "Due to economic instability, many businesses closed.",
+          "ielts_usage": "Use 'due to' for concise cause-effect relationships in Task 1 descriptions."
+        }
+      ],
+      "examples": {
+        "easy": ["It rained heavily. Therefore, the match was cancelled.", "Due to illness, she missed the exam."],
+        "medium": ["Urbanisation has accelerated; consequently, housing demand has surged.", "Owing to insufficient funding, the research project was abandoned."],
+        "ielts": ["Globalisation has increased labour mobility; as a result, cultural diversity in workplaces has grown significantly.", "Due to the rising cost of living, many young adults are unable to afford homeownership."],
+        "academic": ["The control group exhibited no significant changes; therefore, the treatment effect can be attributed to the intervention.", "Owing to the retrospective nature of the study, causal inferences should be drawn with caution."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "Due to the economy is weak, many businesses closed.",
+          "correct": "Due to the weak economy, many businesses closed.",
+          "explanation": "'Due to' requires a noun phrase, not a clause. Use 'because' for clauses."
+        }
+      ]
+    },
+    {
+      "topic_id": 19,
+      "topic_name": "Addition & Emphasis Connectors",
+      "description": "Moreover, furthermore, in addition, not only...but also",
+      "order": 3,
+      "prerequisites": [17],
+      "rules": [
+        {
+          "rule_id": "conn_3_1",
+          "rule": "Moreover/Furthermore/In addition (adverbs): add supporting points. Begin new sentences.",
+          "example": "Electric cars reduce emissions. Moreover, they lower fuel costs.",
+          "ielts_usage": "Use additive connectors to build cumulative arguments in Writing Task 2."
+        }
+      ],
+      "examples": {
+        "easy": ["He is smart. Furthermore, he is hardworking.", "Not only is she talented, but she is also dedicated."],
+        "medium": ["The policy reduces inequality. In addition, it stimulates economic growth.", "Not only does exercise improve physical health, but it also enhances mental well-being."],
+        "ielts": ["Renewable energy reduces dependence on fossil fuels. Moreover, it creates new employment opportunities in the technology sector.", "Not only has globalisation facilitated economic growth, but it has also promoted cultural exchange and understanding."],
+        "academic": ["The findings confirm the primary hypothesis. Furthermore, they suggest previously unidentified correlations between the variables.", "Not only does the theoretical framework account for individual variation, but it also accommodates contextual factors."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "Moreover it increases unemployment.",
+          "correct": "Moreover, it increases unemployment.",
+          "explanation": "Sentence adverbs like 'moreover' are followed by a comma."
+        }
+      ]
+    }
+  ]
+}

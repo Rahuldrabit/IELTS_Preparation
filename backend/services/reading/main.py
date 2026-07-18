@@ -526,6 +526,9 @@ async def submit_and_analyze(
             results.append(QuestionExplanation(
                 question_id=question.id,
                 question_number=question.question_number or 0,
+                question_text=question.question_text,
+                question_type=question.question_type,
+                options=question.options,
                 is_correct=True,
                 user_answer=answer.answer,
                 correct_answer=question.correct_answer,
@@ -546,6 +549,9 @@ async def submit_and_analyze(
             results.append(QuestionExplanation(
                 question_id=question.id,
                 question_number=question.question_number or 0,
+                question_text=question.question_text,
+                question_type=question.question_type,
+                options=question.options,
                 is_correct=False,
                 user_answer=answer.answer,
                 correct_answer=question.correct_answer,

@@ -1,0 +1,108 @@
+{
+  "module_id": 8,
+  "module_name": "Conditionals",
+  "description": "Zero, first, second, third, and mixed conditionals",
+  "topics": [
+    {
+      "topic_id": 14,
+      "topic_name": "Zero & First Conditionals",
+      "description": "Facts, general truths, and likely future situations",
+      "order": 1,
+      "prerequisites": [7],
+      "rules": [
+        {
+          "rule_id": "cond_1_1",
+          "rule": "Zero conditional: If + present simple, present simple. For general truths and facts.",
+          "example": "If you heat water to 100°C, it boils.",
+          "ielts_usage": "Use zero conditionals when stating scientific facts or universal truths in Task 1."
+        },
+        {
+          "rule_id": "cond_1_2",
+          "rule": "First conditional: If + present simple, will + base verb. For likely future situations.",
+          "example": "If governments invest in education, economies will grow.",
+          "ielts_usage": "Use first conditionals for predictions and arguments about likely outcomes in Task 2."
+        }
+      ],
+      "examples": {
+        "easy": ["If it rains, the ground gets wet.", "If I study hard, I will pass the exam."],
+        "medium": ["If unemployment rises, consumer spending typically decreases.", "If the government implements these reforms, living standards will improve."],
+        "ielts": ["If developing nations fail to invest in renewable energy, they will face severe environmental consequences.", "If educational standards improve, countries will experience stronger economic growth in the long term."],
+        "academic": ["If the null hypothesis is rejected, the alternative hypothesis gains empirical support.", "If longitudinal data become available, researchers will be able to establish causal relationships."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "If it will rain tomorrow, I will stay home.",
+          "correct": "If it rains tomorrow, I will stay home.",
+          "explanation": "In first conditional, use present simple in the if-clause, not 'will'."
+        }
+      ]
+    },
+    {
+      "topic_id": 15,
+      "topic_name": "Second & Third Conditionals",
+      "description": "Hypothetical present/future and unreal past situations",
+      "order": 2,
+      "prerequisites": [14],
+      "rules": [
+        {
+          "rule_id": "cond_2_1",
+          "rule": "Second conditional: If + past simple, would + base verb. For unlikely/hypothetical present or future.",
+          "example": "If I were the president, I would invest more in healthcare.",
+          "ielts_usage": "Use for hypothetical arguments and solutions in Speaking Part 3 and Writing Task 2."
+        },
+        {
+          "rule_id": "cond_2_2",
+          "rule": "Third conditional: If + past perfect, would have + past participle. For unreal past situations.",
+          "example": "If the government had acted sooner, the crisis would have been averted.",
+          "ielts_usage": "Use to discuss past hypothetical scenarios and missed opportunities."
+        }
+      ],
+      "examples": {
+        "easy": ["If I had more money, I would travel the world.", "If she had studied harder, she would have passed."],
+        "medium": ["If governments allocated more funding to research, scientific breakthroughs would occur more frequently.", "If the policy had been implemented earlier, fewer people would have been affected."],
+        "ielts": ["If every country committed to reducing emissions by 50%, global warming would slow significantly.", "If international organisations had intervened earlier, the humanitarian crisis would not have reached this scale."],
+        "academic": ["If the sample size were larger, the statistical power of the study would be sufficient to detect smaller effects.", "If longitudinal data had been collected, the researchers would have been able to establish temporal causality."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "If I would have money, I would buy a car.",
+          "correct": "If I had money, I would buy a car.",
+          "explanation": "In second conditional, use past simple (not 'would have') in the if-clause."
+        },
+        {
+          "incorrect": "If he would have studied, he would have passed.",
+          "correct": "If he had studied, he would have passed.",
+          "explanation": "In third conditional, use past perfect (not 'would have') in the if-clause."
+        }
+      ]
+    },
+    {
+      "topic_id": 16,
+      "topic_name": "Mixed Conditionals",
+      "description": "Combining different time references in conditional sentences",
+      "order": 3,
+      "prerequisites": [15],
+      "rules": [
+        {
+          "rule_id": "cond_3_1",
+          "rule": "Mixed conditionals combine different time references: past condition → present result, or present condition → past result.",
+          "example": "If I had studied medicine (past), I would be a doctor now (present).",
+          "ielts_usage": "Mixed conditionals demonstrate advanced grammatical range and boost band 7+ in Writing and Speaking."
+        }
+      ],
+      "examples": {
+        "easy": ["If I had taken that job, I would be living in London now.", "If she spoke French, she would have got that job."],
+        "medium": ["If the government had invested in renewable energy a decade ago, the country would be less dependent on fossil fuels today.", "If she were more experienced, she would have handled the crisis differently."],
+        "ielts": ["If world leaders had prioritised climate change in the 1990s, we would not be facing such severe environmental challenges today.", "If developing nations had better infrastructure, they would have recovered from the economic downturn more quickly."],
+        "academic": ["If the theoretical framework were more robust, the findings of the 2015 study would have been more generalisable.", "If participants had received the intervention earlier, their current performance levels would be significantly higher."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "If I studied medicine, I would be a doctor now.",
+          "correct": "If I had studied medicine, I would be a doctor now.",
+          "explanation": "For a past unreal condition with a present result, use past perfect in the if-clause."
+        }
+      ]
+    }
+  ]
+}

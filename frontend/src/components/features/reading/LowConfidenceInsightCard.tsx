@@ -32,8 +32,7 @@ export function LowConfidenceInsightCard({ result, className }: LowConfidenceIns
   const telemetryMap = useReadingStore((s) => s.telemetryMap)
   
   const telemetryData = useMemo(() => {
-    const key = String(result.question_id)
-    return telemetryMap?.[key]
+    return telemetryMap?.[String(result.question_id)]
   }, [telemetryMap, result.question_id])
 
   if (!confidenceFlagsEnabled || !telemetryData || !result.low_confidence_insight) {

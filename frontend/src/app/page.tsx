@@ -9,6 +9,7 @@ import { RecentMistakesWidget } from '@/components/features/dashboard/RecentMist
 import { WeeklyProgressWidget } from '@/components/features/dashboard/WeeklyProgressWidget'
 import { AIRecommendationsWidget } from '@/components/features/dashboard/AIRecommendationsWidget'
 import { UmaInterventionCard } from '@/components/features/dashboard/UmaInterventionCard'
+import { MockTestBanner } from '@/components/features/dashboard/MockTestBanner'
 import { staggerContainer } from '@/lib/animations'
 
 export default function DashboardPage() {
@@ -16,6 +17,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Hero Section */}
       <HeroCard />
+
+      {/* Mock Test Recommendation */}
+      <MockTestBanner />
 
       {/* Uma Intervention — full width when present */}
       <UmaInterventionCard />

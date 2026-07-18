@@ -1,0 +1,131 @@
+{
+  "module_id": 10,
+  "module_name": "Advanced Grammar",
+  "description": "Inversion, nominalization, parallel structure, cleft sentences",
+  "topics": [
+    {
+      "topic_id": 20,
+      "topic_name": "Inversion",
+      "description": "Inverted word order for emphasis and formality",
+      "order": 1,
+      "prerequisites": [11, 16],
+      "rules": [
+        {
+          "rule_id": "adv_1_1",
+          "rule": "After negative/restrictive adverbs at sentence start, invert subject and auxiliary verb.",
+          "example": "Not only did the economy grow, but unemployment also decreased.",
+          "ielts_usage": "Inversion demonstrates Band 8+ grammatical range in academic writing."
+        },
+        {
+          "rule_id": "adv_1_2",
+          "rule": "Conditional inversion: omit 'if' and invert subject-auxiliary. More formal.",
+          "example": "Were the government to implement these reforms, the economy would improve.",
+          "ielts_usage": "Use conditional inversion for sophisticated hypothetical arguments."
+        }
+      ],
+      "examples": {
+        "easy": ["Never have I seen such a sight.", "Rarely does she complain."],
+        "medium": ["Not only did the study confirm the hypothesis, but it also revealed unexpected patterns.", "Were this trend to continue, significant social changes would follow."],
+        "ielts": ["Seldom has the international community faced such a complex environmental challenge.", "Had governments invested in renewable energy earlier, the current crisis could have been mitigated."],
+        "academic": ["Not until the longitudinal data were analysed did the temporal relationship become apparent.", "Were the sample size to be increased, the statistical power would be sufficient to detect smaller effect sizes."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "Never I have seen such beauty.",
+          "correct": "Never have I seen such beauty.",
+          "explanation": "After fronted negative adverbs, invert auxiliary and subject."
+        }
+      ]
+    },
+    {
+      "topic_id": 21,
+      "topic_name": "Nominalization",
+      "description": "Converting verbs/adjectives to noun phrases for academic style",
+      "order": 2,
+      "prerequisites": [20],
+      "rules": [
+        {
+          "rule_id": "adv_2_1",
+          "rule": "Convert verbs to nouns to create denser, more formal academic prose.",
+          "example": "Verb: 'The population grew' → Noun: 'The growth of the population'",
+          "ielts_usage": "Nominalization is a hallmark of Band 8+ academic writing style."
+        }
+      ],
+      "examples": {
+        "easy": ["Decide → decision. They decided → Their decision", "Improve → improvement. Health improved → The improvement of health"],
+        "medium": ["The government implemented the policy → The implementation of the policy by the government", "Technology developed rapidly → The rapid development of technology"],
+        "ielts": ["People increasingly rely on technology → The increasing reliance on technology has become a defining characteristic of modern society.", "The environment deteriorated quickly → The rapid deterioration of the environment demands immediate governmental intervention."],
+        "academic": ["Researchers investigated the phenomenon → The investigation of this phenomenon yielded significant findings.", "The algorithm performed accurately → The accuracy of the algorithm's performance exceeded initial projections."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The fact that the economy grew was important.",
+          "correct": "The growth of the economy was significant.",
+          "explanation": "Avoid 'the fact that' — use direct nominalization for conciseness."
+        }
+      ]
+    },
+    {
+      "topic_id": 22,
+      "topic_name": "Parallel Structure",
+      "description": "Maintaining grammatical consistency in lists and comparisons",
+      "order": 3,
+      "prerequisites": [10],
+      "rules": [
+        {
+          "rule_id": "adv_3_1",
+          "rule": "Items in a list or comparison must have the same grammatical form.",
+          "example": "The course teaches reading, writing, and speaking (all gerunds).",
+          "ielts_usage": "Parallelism demonstrates control over grammar and improves coherence."
+        }
+      ],
+      "examples": {
+        "easy": ["She likes swimming, running, and cycling.", "He is smart, hardworking, and reliable."],
+        "medium": ["The study aimed to identify patterns, analyse relationships, and propose solutions.", "Students who attend regularly, participate actively, and submit work on time tend to achieve higher grades."],
+        "ielts": ["Effective leaders must communicate clearly, delegate responsibly, and inspire consistently.", "The policy not only reduces inequality but also stimulates innovation and promotes social mobility."],
+        "academic": ["The framework addresses how individuals perceive risk, why they engage in avoidance behaviours, and what interventions might modify such responses.", "Both the experimental and control groups were matched for age, gender distribution, and socioeconomic background."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The job requires experience, being creative, and you must be flexible.",
+          "correct": "The job requires experience, creativity, and flexibility.",
+          "explanation": "All items must match grammatically — use all nouns, all gerunds, or all infinitives."
+        }
+      ]
+    },
+    {
+      "topic_id": 23,
+      "topic_name": "Cleft Sentences",
+      "description": "It is/was...that/who constructions for emphasis",
+      "order": 4,
+      "prerequisites": [12],
+      "rules": [
+        {
+          "rule_id": "adv_4_1",
+          "rule": "Cleft sentences use 'It is/was...that/who' to emphasise a specific element.",
+          "example": "It was the lack of funding that caused the project to fail.",
+          "ielts_usage": "Use cleft sentences to highlight key arguments or causes in essays."
+        },
+        {
+          "rule_id": "adv_4_2",
+          "rule": "What-cleft: 'What + subject + verb + is/was + complement' for emphasis.",
+          "example": "What the economy needs is more investment in infrastructure.",
+          "ielts_usage": "What-cleft sentences create strong topic sentences for body paragraphs."
+        }
+      ],
+      "examples": {
+        "easy": ["It was John who broke the window.", "What I need is a good rest."],
+        "medium": ["It is the rising cost of living that concerns most citizens.", "What the research demonstrates is that early intervention produces significantly better outcomes."],
+        "ielts": ["It is the lack of political will, rather than insufficient resources, that prevents meaningful progress on climate change.", "What many fail to recognise is that technological advancement and environmental sustainability are not mutually exclusive goals."],
+        "academic": ["It was the absence of a control group that constituted the primary methodological limitation.", "What distinguishes this study from previous research is the incorporation of longitudinal data spanning three decades."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "It is money what makes the world go round.",
+          "correct": "It is money that makes the world go round.",
+          "explanation": "Use 'that' (not 'what') in it-cleft sentences."
+        }
+      ]
+    }
+  ]
+}

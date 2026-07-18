@@ -16,6 +16,8 @@ from services.import_svc.main import router as import_router
 from services.analytics.main import router as analytics_router
 from services.ai_agent.main import router as ai_agent_router
 from services.agents.router import router as agents_router
+from services.mocktest.main import router as mocktest_router
+from services.telemetry.main import router as telemetry_router
 # Importing the agents package triggers all @registry.register decorators
 import services.agents  # noqa: F401
 
@@ -63,6 +65,8 @@ app.include_router(import_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(ai_agent_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
+app.include_router(mocktest_router, prefix="/api")
+app.include_router(telemetry_router, prefix="/api")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,47 @@
+{
+  "module_id": 3,
+  "module_name": "Pronouns",
+  "description": "Personal, relative, demonstrative, possessive, reflexive pronouns",
+  "topics": [
+    {
+      "topic_id": 5,
+      "topic_name": "Relative Pronouns",
+      "description": "Who, whom, whose, which, that",
+      "order": 1,
+      "prerequisites": [2],
+      "rules": [
+        {
+          "rule_id": "pronouns_1_1",
+          "rule": "Use 'who' for people, 'which' for things, 'that' for both.",
+          "example": "The researcher who conducted the study published the results.",
+          "ielts_usage": "Relative clauses add complexity and sophistication to Academic Writing."
+        },
+        {
+          "rule_id": "pronouns_1_2",
+          "rule": "'Whose' shows possession and can refer to people or things.",
+          "example": "The company, whose profits increased, announced expansion plans.",
+          "ielts_usage": "Use 'whose' to avoid awkward 'of which' constructions."
+        }
+      ],
+      "examples": {
+        "easy": ["The girl who won the prize is my friend.", "The book that I read was interesting."],
+        "medium": ["The methodology, which incorporates quantitative and qualitative approaches, enhances validity.", "Participants whose responses were incomplete were excluded from the analysis."],
+        "ielts": ["Governments that invest in public infrastructure typically experience economic growth.", "The research findings, which contradict previous studies, suggest new theoretical directions."],
+        "academic": ["The conceptual framework, whose theoretical foundations derive from constructivist epistemology, guides the interpretation of qualitative data.", "Methodological triangulation, which involves multiple data sources, strengthens the credibility of research conclusions."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The person which wrote the report is absent.",
+          "correct": "The person who wrote the report is absent.",
+          "explanation": "Use 'who' for people, not 'which'."
+        },
+        {
+          "incorrect": "This is the school whom I attended.",
+          "correct": "This is the school that I attended.",
+          "correct_alternative": "This is the school which I attended.",
+          "explanation": "Use 'that' or 'which' for things, not 'whom'."
+        }
+      ]
+    }
+  ]
+}

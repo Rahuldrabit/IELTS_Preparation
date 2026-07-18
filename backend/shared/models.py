@@ -72,6 +72,9 @@ class User(Base):
     daily_tasks: Mapped[list["DailyTask"]] = relationship(
         "DailyTask", back_populates="user", cascade="all, delete-orphan"
     )
+    mock_tests: Mapped[list["MockTest"]] = relationship(
+        "MockTest", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 # ============ Reading Models ============
@@ -319,9 +322,13 @@ class GrammarSkill(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     skill_name: Mapped[str] = mapped_column(String(100), nullable=False)  # Articles, Tenses, etc.
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    module: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # Which module this belongs to (e.g., "Foundations", "Verb System")
     mastery: Mapped[int] = mapped_column(Integer, default=0)  # 0-100
+    confidence: Mapped[float] = mapped_column(Numeric(5, 2), default=0.0)  # 0-1 based on performance consistency
     mistake_count: Mapped[int] = mapped_column(Integer, default=0)
+    recent_performance: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Last 5 attempts: {"scores": [1,0,1,1,0], "timestamps": [...]}
     last_practiced: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_reviewed: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -331,6 +338,12 @@ class GrammarSkill(Base):
     user: Mapped["User"] = relationship("User", back_populates="grammar_skills")
     mistakes: Mapped[list["GrammarMistake"]] = relationship(
         "GrammarMistake", back_populates="skill", cascade="all, delete-orphan"
+    )
+    learning_history: Mapped[list["GrammarLearningHistory"]] = relationship(
+        "GrammarLearningHistory", back_populates="skill", cascade="all, delete-orphan"
+    )
+    notes: Mapped[list["GrammarNote"]] = relationship(
+        "GrammarNote", back_populates="skill", cascade="all, delete-orphan"
     )
 
 
@@ -347,10 +360,103 @@ class GrammarMistake(Base):
     correct_sentence: Mapped[str] = mapped_column(Text, nullable=False)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # reading, writing, etc.
+    error_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # More specific error classification
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
     skill: Mapped["GrammarSkill"] = relationship("GrammarSkill", back_populates="mistakes")
+
+
+class GrammarTopic(Base):
+    """Grammar topic structure from curriculum."""
+
+    __tablename__ = "grammar_topics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    topic_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    module: Mapped[str] = mapped_column(String(50), nullable=False)  # Which module this belongs to
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    order_in_module: Mapped[int] = mapped_column(Integer, default=0)  # For ordering within module
+    prerequisites: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # List of prerequisite topic IDs
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class GrammarExercise(Base):
+    """Generated grammar exercise instance."""
+
+    __tablename__ = "grammar_exercises"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    topic_id: Mapped[int] = mapped_column(Integer, ForeignKey("grammar_topics.id"), nullable=False)
+    exercise_type: Mapped[str] = mapped_column(String(50), nullable=False)  # fill_blank, drag_drop, etc.
+    question_data: Mapped[dict] = mapped_column(JSON, nullable=False)  # Structure varies by type
+    correct_answer: Mapped[str] = mapped_column(Text, nullable=False)
+    explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    difficulty: Mapped[str] = mapped_column(String(20), default="medium")
+    generated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    topic: Mapped["GrammarTopic"] = relationship("GrammarTopic")
+
+
+class GrammarAttempt(Base):
+    """User's attempt at a grammar exercise."""
+
+    __tablename__ = "grammar_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    exercise_id: Mapped[int] = mapped_column(Integer, ForeignKey("grammar_exercises.id"), nullable=False)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("grammar_skills.id"), nullable=False)
+    user_answer: Mapped[str] = mapped_column(Text, nullable=False)
+    is_correct: Mapped[bool] = mapped_column(Boolean, default=False)
+    feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    time_spent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # seconds
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User")
+    exercise: Mapped["GrammarExercise"] = relationship("GrammarExercise")
+    skill: Mapped["GrammarSkill"] = relationship("GrammarSkill")
+
+
+class GrammarNote(Base):
+    """Auto-generated grammar note for repeated mistakes."""
+
+    __tablename__ = "grammar_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("grammar_skills.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    mistake_pattern: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    correction: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    example: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User")
+    skill: Mapped["GrammarSkill"] = relationship("GrammarSkill", back_populates="notes")
+
+
+class GrammarLearningHistory(Base):
+    """Track grammar learning activities."""
+
+    __tablename__ = "grammar_learning_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("grammar_skills.id", ondelete="CASCADE"), nullable=False)
+    activity_type: Mapped[str] = mapped_column(String(50), nullable=False)  # lesson, exercise, writing_practice, speaking_practice
+    details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User")
+    skill: Mapped["GrammarSkill"] = relationship("GrammarSkill", back_populates="learning_history")
 
 
 # ============ Daily Tasks Model ============
@@ -422,6 +528,84 @@ class Milestone(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+# ============ Mock Test Models ============
+
+
+class MockTest(Base):
+    """Full IELTS mock test session (Listening + Reading + Writing + Speaking)."""
+
+    __tablename__ = "mock_tests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    test_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # baseline | generated
+    status: Mapped[str] = mapped_column(
+        String(20), default="in_progress"
+    )  # in_progress | completed | abandoned
+    # Overall results
+    overall_band: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)
+    listening_band: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)
+    reading_band: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)
+    writing_band: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)
+    speaking_band: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)
+    # Full AI diagnostic report JSON
+    diagnostic_report: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Stores generated content for each section (so test can be resumed/reviewed)
+    section_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Timing
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    total_time_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="mock_tests")
+    sections: Mapped[list["MockTestSection"]] = relationship(
+        "MockTestSection", back_populates="mock_test", cascade="all, delete-orphan",
+        order_by="MockTestSection.section_order"
+    )
+
+
+class MockTestSection(Base):
+    """Individual section within a mock test."""
+
+    __tablename__ = "mock_test_sections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mock_test_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mock_tests.id", ondelete="CASCADE"), nullable=False
+    )
+    section_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # listening | reading | writing | speaking
+    section_order: Mapped[int] = mapped_column(Integer, nullable=False)  # 1=listening, 2=reading, 3=writing, 4=speaking
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending | in_progress | completed | skipped
+    # Timing
+    time_allocated_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    time_spent_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Content and answers
+    content_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Generated/loaded section content
+    answers: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # User's answers for this section
+    # Scoring
+    score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    band_estimate: Mapped[Optional[float]] = mapped_column(Numeric(3, 1), nullable=True)
+    # Per-section AI feedback
+    section_feedback: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Difficulty configuration used for generation
+    difficulty_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    # Relationships
+    mock_test: Mapped["MockTest"] = relationship("MockTest", back_populates="sections")
+
+
 # Add indexes for performance
 Index("idx_sessions_user_skill", Session.user_id, Session.skill)
 Index("idx_sessions_created", Session.started_at)
@@ -429,3 +613,12 @@ Index("idx_user_responses_session", UserResponse.session_id)
 Index("idx_vocabulary_user_mastery", Vocabulary.user_id, Vocabulary.mastery)
 Index("idx_grammar_skill_user", GrammarSkill.user_id)
 Index("idx_daily_tasks_user_date", DailyTask.user_id, DailyTask.date)
+Index("idx_mock_tests_user", MockTest.user_id)
+Index("idx_mock_tests_status", MockTest.user_id, MockTest.status)
+Index("idx_mock_test_sections_test", MockTestSection.mock_test_id)
+Index("idx_grammar_skill_module", GrammarSkill.module)
+Index("idx_grammar_topic_module", GrammarTopic.module)
+Index("idx_grammar_exercise_topic", GrammarExercise.topic_id)
+Index("idx_grammar_attempt_user_exercise", GrammarAttempt.user_id, GrammarAttempt.exercise_id)
+Index("idx_grammar_note_user_skill", GrammarNote.user_id, GrammarNote.skill_id)
+Index("idx_grammar_history_user_skill", GrammarLearningHistory.user_id, GrammarLearningHistory.skill_id)

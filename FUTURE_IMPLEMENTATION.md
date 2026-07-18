@@ -643,10 +643,13 @@ After implementing each module:
 | Module | Backend | Frontend | Status |
 |--------|---------|----------|--------|
 | Reading | ✅ Complete | ✅ Complete | Done |
-| Writing | Planned | Planned | Pending |
-| Listening | Planned | Planned | Pending |
-| Speaking | Planned | Planned | Pending |
-| Import (VLM) | Planned | Planned | Pending |
+| Writing | ✅ Complete | ✅ Complete | Done |
+| Listening | ✅ Complete | ✅ Complete | Done |
+| Speaking | ✅ Complete | ✅ Complete | Done |
+| Import (VLM) | ✅ Complete | ✅ Complete | Done |
+| Grammar | ✅ Complete | ✅ Complete | Done |
+| Vocabulary | ✅ Complete | ✅ Complete | Done |
+| Mock Test | ✅ Complete | ✅ Complete | Done |
 
 The Reading module serves as the reference implementation. Follow the same patterns:
 - Zustand store for state

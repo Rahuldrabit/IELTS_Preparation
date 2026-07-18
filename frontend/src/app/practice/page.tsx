@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { BookOpen, Headphones, Mic, PenTool, BookMarked, FileText, ArrowRight, Clock, TrendingUp } from 'lucide-react'
+import { BookOpen, Headphones, Mic, PenTool, BookMarked, FileText, ArrowRight, Clock, TrendingUp, Trophy } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -96,6 +96,31 @@ export default function PracticePage() {
         <p className="text-muted-foreground">
           Choose a skill to practice and improve your IELTS score
         </p>
+      </motion.div>
+
+      {/* Mock Test CTA */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <Link href="/practice/mock-test">
+          <Card className="hover:shadow-lg transition-all duration-300 group cursor-pointer overflow-hidden border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Trophy className="h-7 w-7 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold mb-1">Full Mock Test</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Simulate the complete IELTS exam with real timing and AI evaluation
+                  </p>
+                </div>
+                <Button className="shrink-0 group-hover:shadow-md transition-shadow">
+                  Take Test
+                  <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </motion.div>
 
       {/* Skills Grid */}

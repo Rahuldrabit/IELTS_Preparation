@@ -17,6 +17,15 @@ import { VocabSelectionPopup } from '@/components/features/reading/VocabSelectio
 import { useFeature } from '@/lib/hooks/useFeature'
 import { useReadingTelemetry } from '@/lib/hooks/useReadingTelemetry'
 import { WorkspaceFeatureChipGroup } from '@/components/ui/WorkspaceFeatureChip'
+import {
+  useTelemetry,
+  useCalibration,
+  useGazeDebug,
+  GazeDebugOverlay,
+  CalibrationOverlay,
+  CameraPermission,
+  type ReadingTracker,
+} from '@/modules/telemetry'
 
 // ─────────────────────────────────────────────
 //  Timer Hook
@@ -91,6 +100,155 @@ export default function ReadingPage() {
     word: string
     position: { x: number; y: number }
   } | null>(null)
+
+  // ── Eye Tracking (CTE) ──────────────────────
+  const [eyeTrackingEnabled, setEyeTrackingEnabled] = useState(false)
+  const [showCalibration, setShowCalibration] = useState(false)
+  const [cameraStatus, setCameraStatus] = useState<'idle' | 'requesting' | 'active' | 'denied' | 'error'>('idle')
+
+  const cte = useTelemetry({
+    skill: 'reading',
+    sessionId: sessionId ? `reading_${sessionId}` : 'reading_0',
+    config: {
+      gazeEnabled: eyeTrackingEnabled,
+      debugOverlay: true,
+    },
+    totalWords: paragraphs.reduce((sum, p) => sum + p.text.split(/\s+/).length, 0),
+  })
+
+  const calibration = useCalibration()
+
+  const gazeDebug = useGazeDebug({
+    tracker: cte.tracker as ReadingTracker | null,
+    enabled: cte.status === 'active' && eyeTrackingEnabled,
+  })
+
+  // Bridge: FaceMesh iris data → calibration system during calibration
+  const [currentIrisPosition, setCurrentIrisPosition] = useState<{ x: number; y: number } | null>(null)
+  const [faceMeshReady, setFaceMeshReady] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<{ stage: string; progress: number } | null>(null)
+
+  useEffect(() => {
+    if (!showCalibration || cte.status !== 'active') return
+
+    const tracker = cte.tracker as ReadingTracker | null
+    if (!tracker) return
+
+    // Listen for FaceMesh results (already being produced by ReadingTracker pipeline)
+    const disposeResult = tracker.faceMesh.on('result', (result) => {
+      if (result.landmarks) {
+        setFaceMeshReady(true)
+        // Average both irises for calibration
+        const irisX = (result.landmarks.leftIris.x + result.landmarks.rightIris.x) / 2
+        const irisY = (result.landmarks.leftIris.y + result.landmarks.rightIris.y) / 2
+        setCurrentIrisPosition({ x: irisX, y: irisY })
+      }
+    })
+
+    // Listen for download progress
+    const disposeProgress = tracker.faceMesh.on('progress', (progress) => {
+      setDownloadProgress({ stage: progress.stage, progress: progress.progress })
+    })
+
+    return () => {
+      disposeResult()
+      disposeProgress()
+      setFaceMeshReady(false)
+      setCurrentIrisPosition(null)
+      setDownloadProgress(null)
+    }
+  }, [showCalibration, cte.status, cte.tracker])
+
+  const handleStartEyeTracking = useCallback(async () => {
+    // Step 1: Request camera permission IMMEDIATELY (triggers browser prompt)
+    setCameraStatus('requesting')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        audio: false,
+      })
+      // Permission granted — keep stream active and pass to CTE
+      setCameraStatus('active')
+      setEyeTrackingEnabled(true)
+
+      // Step 2: Check calibration and start CTE with existing stream
+      try {
+        await cte.start(stream)
+        const stored = calibration.loadStored()
+        if (!stored) {
+          setShowCalibration(true)
+          calibration.startCalibration()
+        }
+      } catch (startErr) {
+        console.error('[CTE] Start failed:', startErr)
+        setCameraStatus('error')
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      const isDenied = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
+      setCameraStatus(isDenied ? 'denied' : 'error')
+      console.error('[CTE] Camera permission error:', error.message)
+    }
+  }, [calibration, cte])
+
+  const handleSkipEyeTracking = useCallback(() => {
+    setEyeTrackingEnabled(false)
+    setCameraStatus('idle')
+  }, [])
+
+  /** Immediately stop all eye tracking — works at any phase */
+  const handleStopEyeTracking = useCallback(() => {
+    // Stop CTE tracker if running
+    if (cte.status === 'active') {
+      cte.stop()
+    }
+    // Dismiss calibration overlay
+    if (showCalibration) {
+      setShowCalibration(false)
+      calibration.cancel()
+    }
+    // Reset all state
+    setEyeTrackingEnabled(false)
+    setCameraStatus('idle')
+    setFaceMeshReady(false)
+    setCurrentIrisPosition(null)
+    setDownloadProgress(null)
+  }, [cte, showCalibration, calibration])
+
+  // Pre-warm MediaPipe on page load (silent background download)
+  useEffect(() => {
+    const prewarmFaceMesh = () => {
+      // We'll rely on browser caching - when the real FaceMesh starts,
+      // it will see cached files and load much faster
+      // The progress indicator will show actual download progress
+      console.debug('[CTE] Pre-warm scheduled - model will cache on first use')
+    }
+    
+    // Schedule pre-warm
+    const timeout = setTimeout(prewarmFaceMesh, 2000)
+    return () => clearTimeout(timeout)
+  }, [])
+
+  const handleCalibrationCancel = useCallback(() => {
+    setShowCalibration(false)
+    calibration.cancel()
+    // Stop everything when user cancels calibration
+    handleStopEyeTracking()
+  }, [calibration, handleStopEyeTracking])
+
+  // When calibration completes, dismiss overlay (CTE is already running)
+  useEffect(() => {
+    if (calibration.state.status === 'complete' && showCalibration) {
+      setShowCalibration(false)
+    }
+  }, [calibration.state.status, showCalibration])
+
+  // Stop CTE on unmount or phase change to review
+  useEffect(() => {
+    if (phase === 'review' && cte.status === 'active') {
+      cte.stop()
+    }
+  }, [phase, cte])
 
   // Weakness profile for adversarial mode — derived from review results when available
   const [weaknessProfile, setWeaknessProfile] = useState<StudentWeaknessProfile | null>(null)
@@ -345,6 +503,103 @@ export default function ReadingPage() {
                     { featureKey: 'confidenceFlags', label: 'Uma Insights', icon: Brain },
                   ]}
                 />
+                {/* Eye Tracking Toggle */}
+                {cte.status === 'idle' && cameraStatus === 'idle' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={handleStartEyeTracking}
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                    </span>
+                    Eye Tracking
+                    {/* Show cached indicator if model is likely cached */}
+                    {(() => {
+                      if (typeof window === 'undefined') return null
+                      const cacheKey = `cte_facemesh_cached_https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`
+                      const isCached = localStorage.getItem(cacheKey) === 'true'
+                      return isCached ? (
+                        <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1 py-0.5 rounded">
+                          Cached
+                        </span>
+                      ) : null
+                    })()}
+                  </Button>
+                )}
+                {(cameraStatus === 'requesting' || (cameraStatus === 'active' && cte.status !== 'active')) && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={handleStopEyeTracking}
+                      title="Click to cancel"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {cameraStatus === 'requesting' ? 'Allow Camera...' : 'Starting Gaze...'}
+                      <span className="ml-1 text-[10px] text-muted-foreground">✕</span>
+                    </Button>
+                    {/* Download progress indicator */}
+                    {downloadProgress && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 transition-all duration-300"
+                            style={{ width: `${downloadProgress.progress}%` }}
+                          />
+                        </div>
+                        <span className="whitespace-nowrap">
+                          {downloadProgress.stage === 'library' && 'Loading library...'}
+                          {downloadProgress.stage === 'wasm' && 'Downloading WASM...'}
+                          {downloadProgress.stage === 'model' && 'Downloading model...'}
+                          {downloadProgress.stage === 'initializing' && 'Initializing...'}
+                          {downloadProgress.progress}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {cte.status === 'active' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="group gap-1.5 text-xs border-green-500/50 text-green-600 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-600 transition-colors"
+                    onClick={handleStopEyeTracking}
+                    title="Click to turn off eye tracking"
+                  >
+                    <span className="relative flex h-2 w-2 group-hover:hidden">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                    </span>
+                    <span className="hidden group-hover:inline-block w-2 h-2 text-[10px] leading-none">✕</span>
+                    <span className="group-hover:hidden">Gaze Active</span>
+                    <span className="hidden group-hover:inline">Stop Tracking</span>
+                  </Button>
+                )}
+                {cameraStatus === 'denied' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-yellow-500/50 text-yellow-600"
+                    onClick={handleStartEyeTracking}
+                    title="Camera access was denied. Click to retry."
+                  >
+                    Camera Denied
+                  </Button>
+                )}
+                {(cte.status === 'error' || cameraStatus === 'error') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-red-500/50 text-red-600"
+                    onClick={handleStartEyeTracking}
+                  >
+                    Retry Eye Tracking
+                  </Button>
+                )}
                 {/* Timer with Start button */}
                 <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted">
                   {!timer.isRunning && timer.seconds === 20 * 60 ? (
@@ -462,6 +717,32 @@ export default function ReadingPage() {
             </div>
           </div>
         </motion.div>
+      )}
+
+      {/* ── CTE Overlays ── */}
+
+      {/* Calibration overlay (full-screen) */}
+      {showCalibration && (
+        <CalibrationOverlay
+          state={calibration.state}
+          currentTarget={calibration.currentTarget}
+          targets={calibration.targets}
+          onConfirmLooking={calibration.confirmLooking}
+          onAddSample={calibration.addSample}
+          onCancel={handleCalibrationCancel}
+          irisPosition={currentIrisPosition}
+          cameraReady={faceMeshReady}
+        />
+      )}
+
+      {/* Gaze debug overlay (shows gaze dot, trail, fixation heatmap) */}
+      {cte.status === 'active' && eyeTrackingEnabled && (
+        <GazeDebugOverlay
+          trail={gazeDebug.trail}
+          fixations={gazeDebug.fixations}
+          regressionCount={gazeDebug.regressionCount}
+          visible={true}
+        />
       )}
     </div>
   )

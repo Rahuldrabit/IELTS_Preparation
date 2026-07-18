@@ -1,0 +1,80 @@
+{
+  "module_id": 2,
+  "module_name": "Articles",
+  "description": "Definite, indefinite, and zero articles",
+  "topics": [
+    {
+      "topic_id": 3,
+      "topic_name": "Indefinite Articles (a/an)",
+      "description": "Use 'a' before consonant sounds, 'an' before vowel sounds",
+      "order": 1,
+      "prerequisites": [1],
+      "rules": [
+        {
+          "rule_id": "articles_1_1",
+          "rule": "Use 'a' before words that begin with a consonant sound.",
+          "example": "A university, a European country, a one-way street",
+          "ielts_usage": "Use indefinite articles when introducing a singular countable noun for the first time."
+        },
+        {
+          "rule_id": "articles_1_2",
+          "rule": "Use 'an' before words that begin with a vowel sound.",
+          "example": "An hour, an honest person, an MBA degree",
+          "ielts_usage": "Pronunciation matters more than spelling for 'a' vs 'an'."
+        }
+      ],
+      "examples": {
+        "easy": ["I saw a bird.", "She has an apple."],
+        "medium": ["The research requires a comprehensive methodology.", "An unexpected outcome emerged from the analysis."],
+        "ielts": ["Implementing a standardized testing system presents several challenges for educational institutions.", "An in-depth analysis of economic indicators reveals underlying structural issues."],
+        "academic": ["A longitudinal study design enables researchers to examine developmental trajectories over time.", "An interdisciplinary approach facilitates a more nuanced understanding of complex phenomena."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "He is a honest man.",
+          "correct": "He is an honest man.",
+          "explanation": "'Honest' begins with a vowel sound (/ɒ/)."
+        },
+        {
+          "incorrect": "She wants to be a MBA graduate.",
+          "correct": "She wants to be an MBA graduate.",
+          "explanation": "'MBA' begins with a vowel sound (/em/)."
+        }
+      ]
+    },
+    {
+      "topic_id": 4,
+      "topic_name": "Definite Article (the)",
+      "description": "Specific reference to something known or unique",
+      "order": 2,
+      "prerequisites": [3],
+      "rules": [
+        {
+          "rule_id": "articles_2_1",
+          "rule": "Use 'the' when referring to something specific or previously mentioned.",
+          "example": "I read a book. The book was interesting.",
+          "ielts_usage": "Use 'the' when the reader knows exactly what you're referring to."
+        },
+        {
+          "rule_id": "articles_2_2",
+          "rule": "Use 'the' with unique things (the sun, the moon, the internet).",
+          "example": "The government should address climate change.",
+          "ielts_usage": "In Academic Writing, use 'the' with singular institutions (the government, the education system)."
+        }
+      ],
+      "examples": {
+        "easy": ["The sun is bright.", "I enjoyed the movie."],
+        "medium": ["The proposed legislation aims to address environmental concerns.", "The analysis revealed significant correlations between the variables."],
+        "ielts": ["The implementation of renewable energy technologies can reduce dependence on fossil fuels.", "The globalization of markets has led to increased economic interdependence among nations."],
+        "academic": ["The theoretical framework provides a conceptual basis for interpreting the empirical findings.", "The methodological limitations of the study warrant careful consideration when generalizing the results."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "I went to school yesterday.",
+          "correct": "I went to the school yesterday.",
+          "explanation": "Use 'the' when referring to a specific school building, not education in general."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "module_id": 6,
+  "module_name": "Sentence Types",
+  "description": "Simple, compound, complex, and compound-complex sentences",
+  "topics": [
+    {
+      "topic_id": 9,
+      "topic_name": "Simple Sentences",
+      "description": "Independent clauses with one subject-verb combination",
+      "order": 1,
+      "prerequisites": [2],
+      "rules": [
+        {
+          "rule_id": "sentence_1_1",
+          "rule": "A simple sentence has one independent clause with a subject and predicate.",
+          "example": "Environmental awareness has increased significantly.",
+          "ielts_usage": "Vary sentence length: simple sentences add clarity between complex ones."
+        }
+      ],
+      "examples": {
+        "easy": ["The sun rises in the east.", "Students attend classes daily."],
+        "medium": ["Economic growth requires substantial investment in infrastructure.", "The government implemented new regulations."],
+        "ielts": ["Global temperatures have risen dramatically over the past century.", "Educational reforms demand careful consideration of cultural contexts."],
+        "academic": ["Empirical evidence substantiates the theoretical framework proposed by Smith (2020).", "Methodological triangulation enhances the reliability of qualitative research findings."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The student studying hard and getting good grades.",
+          "correct": "The student studies hard and gets good grades.",
+          "explanation": "A simple sentence needs a finite verb, not just a participle."
+        }
+      ]
+    },
+    {
+      "topic_id": 10,
+      "topic_name": "Compound Sentences",
+      "description": "Two independent clauses joined by coordinating conjunctions",
+      "order": 2,
+      "prerequisites": [9],
+      "rules": [
+        {
+          "rule_id": "sentence_2_1",
+          "rule": "Join two independent clauses with FANBOYS (for, and, nor, but, or, yet, so) and a comma.",
+          "example": "The economy grew, but unemployment remained high.",
+          "ielts_usage": "Use compound sentences to show contrast or addition of equally important ideas."
+        }
+      ],
+      "examples": {
+        "easy": ["I studied hard, and I passed the exam.", "She wanted coffee, but the cafe was closed."],
+        "medium": ["The population has increased rapidly, so the demand for housing has grown.", "Renewable energy is expensive, yet it offers long-term environmental benefits."],
+        "ielts": ["Technology has transformed communication, but it has also created new social challenges.", "Governments invest heavily in education, for it drives economic development."],
+        "academic": ["The hypothesis was supported by the data, yet further investigation is warranted.", "Mixed methods approaches integrate quantitative and qualitative paradigms, so they offer comprehensive insights."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The economy grew but unemployment remained high.",
+          "correct": "The economy grew, but unemployment remained high.",
+          "explanation": "Use a comma before the coordinating conjunction when joining two independent clauses."
+        }
+      ]
+    },
+    {
+      "topic_id": 11,
+      "topic_name": "Complex Sentences",
+      "description": "Independent clause with one or more dependent clauses",
+      "order": 3,
+      "prerequisites": [10],
+      "rules": [
+        {
+          "rule_id": "sentence_3_1",
+          "rule": "A complex sentence has one independent clause and at least one dependent clause joined by subordinating conjunctions (because, although, while, if, when, etc.).",
+          "example": "Although renewable energy is expensive, it provides long-term benefits.",
+          "ielts_usage": "Complex sentences demonstrate grammatical range and boost your IELTS band score."
+        }
+      ],
+      "examples": {
+        "easy": ["When it rains, I take an umbrella.", "Because she studied hard, she passed."],
+        "medium": ["Although the initial costs are high, renewable energy reduces long-term expenses.", "While some argue for stricter regulations, others advocate for market-based solutions."],
+        "ielts": ["Although urbanization offers economic opportunities, it creates significant environmental challenges that require immediate attention.", "If governments fail to address climate change now, future generations will face irreversible consequences."],
+        "academic": ["While previous research has focused primarily on quantitative measures, this study adopts a mixed-methods approach to capture nuanced perspectives.", "Because the existing literature reveals conflicting findings, further investigation using longitudinal data is warranted."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "Although he was tired but he continued working.",
+          "correct": "Although he was tired, he continued working.",
+          "explanation": "Do not use both a subordinating conjunction (although) and a coordinating conjunction (but)."
+        }
+      ]
+    }
+  ]
+}

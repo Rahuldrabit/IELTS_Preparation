@@ -1,0 +1,69 @@
+{
+  "module_id": 5,
+  "module_name": "Verb System",
+  "description": "Tenses, aspects, modal verbs, passive voice",
+  "topics": [
+    {
+      "topic_id": 7,
+      "topic_name": "Present Perfect",
+      "description": "Actions that happened at an unspecified time or have present relevance",
+      "order": 1,
+      "prerequisites": [1, 6],
+      "rules": [
+        {
+          "rule_id": "verbs_1_1",
+          "rule": "Use present perfect for actions that started in the past and continue to the present.",
+          "example": "I have studied English for five years.",
+          "ielts_usage": "Common in Speaking Part 1 when discussing experiences and changes."
+        },
+        {
+          "rule_id": "verbs_1_2",
+          "rule": "Use present perfect for recent past actions with present relevance.",
+          "example": "Scientists have discovered a new treatment.",
+          "ielts_usage": "Use in Writing Task 1 to describe recent trends."
+        }
+      ],
+      "examples": {
+        "easy": ["I have eaten breakfast.", "She has visited Paris."],
+        "medium": ["Research has demonstrated the effectiveness of this approach.", "Technological advancements have transformed communication methods."],
+        "ielts": ["Globalization has increased economic interdependence among nations.", "Environmental awareness campaigns have raised public consciousness about sustainability issues."],
+        "academic": ["Recent scholarship has challenged traditional interpretations of historical events.", "Empirical studies have substantiated the theoretical predictions derived from the model."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "I have seen that movie yesterday.",
+          "correct": "I saw that movie yesterday.",
+          "explanation": "Use simple past with specific past time references."
+        }
+      ]
+    },
+    {
+      "topic_id": 8,
+      "topic_name": "Passive Voice",
+      "description": "Forming and using passive constructions",
+      "order": 2,
+      "prerequisites": [7],
+      "rules": [
+        {
+          "rule_id": "verbs_2_1",
+          "rule": "Use passive voice when the focus is on the action, not who performed it.",
+          "example": "The results were analyzed using statistical software.",
+          "ielts_usage": "Common in Academic Writing to describe processes and findings objectively."
+        }
+      ],
+      "examples": {
+        "easy": ["The cake was baked by my mother.", "The letter was sent yesterday."],
+        "medium": ["Data were collected through structured interviews.", "The findings were interpreted within the theoretical framework."],
+        "ielts": ["Environmental regulations have been implemented to reduce industrial pollution.", "Educational reforms are being introduced to improve learning outcomes."],
+        "academic": ["Methodological triangulation was employed to enhance the validity of the research findings.", "Theoretical propositions were derived from an extensive literature review."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The letter was sent yesterday by John.",
+          "correct": "The letter was sent by John yesterday.",
+          "explanation": "Place time expressions at the end of passive sentences."
+        }
+      ]
+    }
+  ]
+}

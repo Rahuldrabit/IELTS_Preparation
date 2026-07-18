@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import { listeningApi, type GenerateListeningRequest } from '@/lib/services/listening'
+import type { QuestionExplanation as ReadingQuestionExplanation } from '@/lib/services/reading'
 import {
   useListeningStore,
   useTotalListeningQuestions,
@@ -354,7 +355,7 @@ export default function ListeningPage() {
             exit={{ opacity: 0 }}
           >
             <ReviewPanel
-              results={reviewResults}
+              results={reviewResults as unknown as ReadingQuestionExplanation[]}
               score={score!}
               bandEstimate={bandEstimate!}
               onTryAgain={reset}

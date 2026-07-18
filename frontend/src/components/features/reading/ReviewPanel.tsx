@@ -24,9 +24,9 @@ interface ReviewPanelProps {
   results: QuestionExplanation[]
   score: number
   bandEstimate: number
-  sessionId: number
+  sessionId?: number
   // paragraphs from the passage — needed to supply excerpt to SocraticHintPanel
-  paragraphs: Array<{ paragraph_id: string; text: string }>
+  paragraphs?: Array<{ paragraph_id: string; text: string }>
   onPracticeSimilar?: () => void
   onTryAgain?: () => void
   onHighlightParagraph?: (paragraphId: string) => void
@@ -53,8 +53,8 @@ export function ReviewPanel({
   results,
   score,
   bandEstimate,
-  sessionId,
-  paragraphs,
+  sessionId = 0,
+  paragraphs = [],
   onPracticeSimilar,
   onTryAgain,
   onHighlightParagraph,
@@ -229,6 +229,33 @@ function QuestionReviewCard({
   if (result.is_correct) {
     return (
       <div className="space-y-4">
+        {/* Question text */}
+        <div className="p-4 rounded-xl bg-muted/50">
+          <p className="text-sm font-medium text-muted-foreground mb-1">
+            Question {result.question_number} • {(result.question_type || '').replace(/_/g, ' ')}
+          </p>
+          <p className="font-medium">{result.question_text}</p>
+          {result.options && result.options.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {result.options.map((opt, idx) => (
+                <div
+                  key={idx}
+                  className={cn(
+                    'text-sm px-3 py-2 rounded-lg',
+                    opt === result.correct_answer
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium'
+                      : opt === result.user_answer
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 line-through'
+                      : 'bg-muted'
+                  )}
+                >
+                  {String.fromCharCode(65 + idx)}. {opt}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="p-6 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -252,6 +279,33 @@ function QuestionReviewCard({
 
   return (
     <div className="space-y-4">
+      {/* Question text */}
+      <div className="p-4 rounded-xl bg-muted/50">
+        <p className="text-sm font-medium text-muted-foreground mb-1">
+          Question {result.question_number} • {result.question_type.replace(/_/g, ' ')}
+        </p>
+        <p className="font-medium">{result.question_text}</p>
+        {result.options && result.options.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {result.options.map((opt, idx) => (
+              <div
+                key={idx}
+                className={cn(
+                  'text-sm px-3 py-2 rounded-lg',
+                  opt === result.correct_answer
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium'
+                    : opt === result.user_answer
+                    ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 line-through'
+                    : 'bg-muted'
+                )}
+              >
+                {String.fromCharCode(65 + idx)}. {opt}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Answer comparison */}
       <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900">
         <div className="flex items-start gap-3">

@@ -1,0 +1,74 @@
+{
+  "module_id": 7,
+  "module_name": "Clauses",
+  "description": "Relative, noun, adverb, conditional, reduced, and participial clauses",
+  "topics": [
+    {
+      "topic_id": 12,
+      "topic_name": "Relative Clauses",
+      "description": "Defining and non-defining relative clauses using who, which, that, whose, where",
+      "order": 1,
+      "prerequisites": [5, 11],
+      "rules": [
+        {
+          "rule_id": "clauses_1_1",
+          "rule": "Defining relative clauses give essential information. No commas. Can use 'that'.",
+          "example": "The students who passed the exam celebrated.",
+          "ielts_usage": "Defining clauses add specificity and precision to academic writing."
+        },
+        {
+          "rule_id": "clauses_1_2",
+          "rule": "Non-defining relative clauses give extra information. Use commas. Cannot use 'that'.",
+          "example": "London, which is the capital of the UK, attracts millions of tourists.",
+          "ielts_usage": "Non-defining clauses demonstrate grammatical sophistication in Task 2 essays."
+        }
+      ],
+      "examples": {
+        "easy": ["The man who lives next door is a teacher.", "The book that I read was interesting."],
+        "medium": ["Students who submit assignments late receive lower grades.", "The university, which was founded in 1850, has an excellent reputation."],
+        "ielts": ["Countries that invest in education tend to have stronger economies.", "Climate change, which affects every nation regardless of development level, requires a coordinated global response."],
+        "academic": ["Participants whose responses indicated high anxiety levels were assigned to the experimental group.", "The methodology, which incorporates both quantitative and qualitative approaches, enables comprehensive data triangulation."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "The city, that I visited last year, was beautiful.",
+          "correct": "The city that I visited last year was beautiful.",
+          "explanation": "Do not use 'that' in non-defining clauses. Either remove commas (defining) or change 'that' to 'which' (non-defining)."
+        },
+        {
+          "incorrect": "The man which wrote the report is absent.",
+          "correct": "The man who wrote the report is absent.",
+          "explanation": "Use 'who' for people, not 'which'."
+        }
+      ]
+    },
+    {
+      "topic_id": 13,
+      "topic_name": "Noun Clauses",
+      "description": "Clauses that function as subjects, objects, or complements",
+      "order": 2,
+      "prerequisites": [12],
+      "rules": [
+        {
+          "rule_id": "clauses_2_1",
+          "rule": "Noun clauses begin with 'that', 'what', 'whether', 'how', 'why', etc. and function as nouns.",
+          "example": "What the government decides will affect millions of people.",
+          "ielts_usage": "Noun clauses add complexity and are common in academic arguments."
+        }
+      ],
+      "examples": {
+        "easy": ["I know that she is coming.", "What he said surprised everyone."],
+        "medium": ["Whether the policy will succeed remains uncertain.", "The research demonstrates that early intervention produces better outcomes."],
+        "ielts": ["What concerns many experts is that economic growth often comes at the expense of environmental sustainability.", "Whether technology improves or hinders social interaction depends largely on how individuals choose to use it."],
+        "academic": ["That methodological rigour is essential to valid research outcomes is widely acknowledged in the literature.", "How cultural factors influence educational attainment remains an underexplored area of inquiry."]
+      },
+      "common_mistakes": [
+        {
+          "incorrect": "I don't know what should I do.",
+          "correct": "I don't know what I should do.",
+          "explanation": "In embedded (indirect) questions, use statement word order, not question word order."
+        }
+      ]
+    }
+  ]
+}

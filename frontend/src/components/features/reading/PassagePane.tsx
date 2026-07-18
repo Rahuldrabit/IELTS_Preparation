@@ -111,6 +111,7 @@ export function PassagePane({
               }}
               id={`paragraph-${para.paragraph_id}`}
               data-paragraph-id={para.paragraph_id}
+              data-cte-paragraph={para.paragraph_id}
               className={cn(
                 'mb-4 text-foreground/90 transition-all duration-300',
                 highlightedParagraphId === para.paragraph_id &&
