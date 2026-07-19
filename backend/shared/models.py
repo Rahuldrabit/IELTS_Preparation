@@ -75,6 +75,9 @@ class User(Base):
     mock_tests: Mapped[list["MockTest"]] = relationship(
         "MockTest", back_populates="user", cascade="all, delete-orphan"
     )
+    achievements: Mapped[list["UserAchievement"]] = relationship(
+        "UserAchievement", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 # ============ Reading Models ============
@@ -305,6 +308,10 @@ class Vocabulary(Base):
     first_seen: Mapped[date] = mapped_column(Date, default=date.today)
     last_reviewed: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Smart Vocabulary Harvesting fields
+    ai_definition: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Context-specific AI definition
+    contexts: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # List of {sentence, source_type, source_id}
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="vocabulary")
@@ -622,3 +629,74 @@ Index("idx_grammar_exercise_topic", GrammarExercise.topic_id)
 Index("idx_grammar_attempt_user_exercise", GrammarAttempt.user_id, GrammarAttempt.exercise_id)
 Index("idx_grammar_note_user_skill", GrammarNote.user_id, GrammarNote.skill_id)
 Index("idx_grammar_history_user_skill", GrammarLearningHistory.user_id, GrammarLearningHistory.skill_id)
+
+
+# ============ Error DNA Models ============
+
+
+class ErrorSignature(Base):
+    """Recurring error pattern identified by Error DNA analysis."""
+
+    __tablename__ = "error_signatures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    skill: Mapped[str] = mapped_column(String(50), nullable=False)  # reading, listening, writing, speaking, grammar
+    question_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # IELTS question type
+    error_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # comprehension, grammar, vocabulary
+    pattern_label: Mapped[str] = mapped_column(String(200), nullable=False)  # Human-readable pattern name
+    pattern_key: Mapped[str] = mapped_column(String(100), nullable=False)  # Normalized key for deduplication
+    occurrences: Mapped[int] = mapped_column(Integer, default=1)
+    severity: Mapped[str] = mapped_column(String(20), default="medium")  # low, medium, high
+    example_refs: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # List of session/response IDs
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active, fixed, suppressed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class WeeklyErrorReport(Base):
+    """Weekly Error DNA report generated every Monday."""
+
+    __tablename__ = "weekly_error_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    week_start: Mapped[date] = mapped_column(Date, nullable=False)
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False)  # Contains headline, insight_text, top_patterns
+    signature_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # List of ErrorSignature IDs
+    generated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# Add indexes for Error DNA
+Index("idx_error_signature_user_skill", ErrorSignature.user_id, ErrorSignature.skill)
+Index("idx_error_signature_user_pattern", ErrorSignature.user_id, ErrorSignature.pattern_key)
+Index("idx_weekly_error_report_user_week", WeeklyErrorReport.user_id, WeeklyErrorReport.week_start)
+
+
+
+# ============ Achievement Models ============
+
+
+class UserAchievement(Base):
+    """User's unlocked achievements."""
+
+    __tablename__ = "user_achievements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    achievement_id: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g., "band_seven", "streak_7"
+    unlocked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="achievements")

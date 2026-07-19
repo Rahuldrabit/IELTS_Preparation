@@ -141,6 +141,19 @@ def _fallback_feedback() -> WritingFeedback:
     )
 
 
+def _build_writing_task_response(task: WritingTask, chart_data: dict = None) -> WritingTaskPublic:
+    """Build a consistent WritingTaskPublic response from a WritingTask."""
+    return WritingTaskPublic(
+        id=task.id,
+        task_type=task.task_type,
+        prompt=task.prompt,
+        description=task.description,
+        min_words=task.min_words,
+        band_descriptor=task.band_descriptor,
+        chart_data=chart_data or (task.generation_params or {}).get("chart_data"),
+    )
+
+
 # ============ Endpoints ============
 
 
@@ -159,13 +172,10 @@ async def generate_writing_task(
         )
         raw = await asyncio.to_thread(client.generate_text, prompt, None, 0.7)
 
-        # Parse the JSON response
-        import json
-        if "{" in raw:
-            start = raw.find("{")
-            end = raw.rfind("}") + 1
-            data = json.loads(raw[start:end])
-        else:
+        # Parse the JSON response using shared utility
+        from shared.parsing import parse_json_from_response
+        data = parse_json_from_response(raw)
+        if not data:
             raise ValueError("No JSON found in response")
 
         task = WritingTask(
@@ -184,15 +194,7 @@ async def generate_writing_task(
         await db.commit()
         await db.refresh(task)
 
-        return WritingTaskPublic(
-            id=task.id,
-            task_type=task.task_type,
-            prompt=task.prompt,
-            description=task.description,
-            min_words=task.min_words,
-            band_descriptor=task.band_descriptor,
-            chart_data=data.get("chart_data"),
-        )
+        return _build_writing_task_response(task, data.get("chart_data"))
 
     except GemmaClientError as e:
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
@@ -216,18 +218,7 @@ async def get_tasks(
     result = await db.execute(query)
     tasks = result.scalars().all()
 
-    return [
-        WritingTaskPublic(
-            id=t.id,
-            task_type=t.task_type,
-            prompt=t.prompt,
-            description=t.description,
-            min_words=t.min_words,
-            band_descriptor=t.band_descriptor,
-            chart_data=(t.generation_params or {}).get("chart_data"),
-        )
-        for t in tasks
-    ]
+    return [_build_writing_task_response(t) for t in tasks]
 
 
 @router.get("/tasks/{task_id}")
@@ -241,15 +232,7 @@ async def get_task(task_id: int, db: AsyncSession = Depends(get_db)):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    return WritingTaskPublic(
-        id=task.id,
-        task_type=task.task_type,
-        prompt=task.prompt,
-        description=task.description,
-        min_words=task.min_words,
-        band_descriptor=task.band_descriptor,
-        chart_data=(task.generation_params or {}).get("chart_data"),
-    )
+    return _build_writing_task_response(task)
 
 
 @router.post("/submit")
@@ -418,3 +401,84 @@ Return JSON:
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sentence evaluation failed: {str(e)}")
+
+
+
+# ─────────────────────────────────────────────
+#  Handwritten Essay Upload (Phase 3 Feature #7)
+# ─────────────────────────────────────────────
+
+from fastapi import UploadFile, File, Form
+
+
+@router.post("/handwritten/upload")
+async def upload_handwritten_essay(
+    file: UploadFile = File(...),
+    task_type: str = Form("task_2"),
+    topic: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a handwritten essay image for VLM text extraction and scoring.
+    
+    Accepts: JPEG, PNG, WebP, HEIC images
+    Returns: Extracted text + AI rubric scoring
+    """
+    from services.writing.handwritten import (
+        validate_image_file,
+        save_temp_image,
+        score_handwritten_essay,
+        cleanup_temp_file,
+    )
+    
+    # Validate image
+    extension = validate_image_file(file)
+    
+    # Save to temp file
+    temp_path = await save_temp_image(file, extension)
+    
+    try:
+        # Extract text and score
+        result = await score_handwritten_essay(
+            image_path=temp_path,
+            task_type=task_type,
+            topic=topic,
+        )
+        
+        return result.model_dump()
+        
+    finally:
+        # Cleanup temp file
+        cleanup_temp_file(temp_path)
+
+
+@router.post("/handwritten/extract")
+async def extract_handwritten_text(
+    file: UploadFile = File(...),
+):
+    """
+    Extract text from a handwritten essay image (without scoring).
+    Useful for preview before submitting for grading.
+    """
+    from services.writing.handwritten import (
+        validate_image_file,
+        save_temp_image,
+        extract_text_from_image,
+        cleanup_temp_file,
+    )
+    
+    # Validate image
+    extension = validate_image_file(file)
+    
+    # Save to temp file
+    temp_path = await save_temp_image(file, extension)
+    
+    try:
+        # Extract text only
+        result = await extract_text_from_image(temp_path)
+        
+        return result.model_dump()
+        
+    finally:
+        # Cleanup temp file
+        cleanup_temp_file(temp_path)

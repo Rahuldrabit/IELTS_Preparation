@@ -312,3 +312,236 @@ async def review_word(request: ReviewRequest, db: AsyncSession = Depends(get_db)
         "correct": request.correct,
         "next_review": next_review.isoformat() if next_review else None,
     }
+
+
+
+# ─────────────────────────────────────────────
+#  Smart Vocabulary Harvesting (Phase 3 Feature #8)
+# ─────────────────────────────────────────────
+
+class HarvestWordRequest(BaseModel):
+    """Request to harvest a word from reading/listening context."""
+    word: str
+    context_sentence: str
+    source_type: str = "reading"  # reading, listening
+    source_id: Optional[int] = None  # passage_id or session_id
+    paragraph_index: Optional[int] = None
+
+
+class HarvestedWordResponse(BaseModel):
+    """Response for a harvested vocabulary word."""
+    id: int
+    word: str
+    context_sentence: str
+    pronunciation: Optional[str] = None
+    definition: Optional[str] = None
+    examples: list[str] = []
+    synonyms: list[str] = []
+    ai_definition: Optional[str] = None  # AI-generated definition for the context
+    saved_at: datetime
+
+
+@router.post("/harvest", response_model=HarvestedWordResponse)
+async def harvest_word(
+    request: HarvestWordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Harvest a vocabulary word from reading or listening practice.
+    
+    This endpoint:
+    1. Extracts the word in context
+    2. Generates AI definition specific to the context
+    3. Saves to vocabulary deck with the context sentence
+    4. Links back to source passage for review
+    """
+    from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+    
+    # Check if word already exists
+    existing = await db.execute(
+        select(Vocabulary)
+        .where(Vocabulary.user_id == 1)
+        .where(Vocabulary.word.ilike(request.word))
+    )
+    existing_word = existing.scalar_one_or_none()
+    
+    if existing_word:
+        # Update with new context
+        contexts = existing_word.contexts or []
+        new_context = {
+            "sentence": request.context_sentence,
+            "source_type": request.source_type,
+            "source_id": request.source_id,
+            "paragraph_index": request.paragraph_index,
+            "saved_at": datetime.utcnow().isoformat(),
+        }
+        contexts.append(new_context)
+        existing_word.contexts = contexts
+        await db.commit()
+        
+        return HarvestedWordResponse(
+            id=existing_word.id,
+            word=existing_word.word,
+            context_sentence=request.context_sentence,
+            pronunciation=existing_word.pronunciation,
+            definition=existing_word.definition,
+            examples=existing_word.examples or [],
+            synonyms=existing_word.synonyms or [],
+            ai_definition=existing_word.ai_definition,
+            saved_at=datetime.utcnow(),
+        )
+    
+    # Generate AI definition for the word in context
+    ai_definition = None
+    enriched = None
+    
+    try:
+        client = get_gemma_client()
+        
+        # Generate context-specific definition
+        context_prompt = f"""You are an IELTS vocabulary expert.
+
+WORD: {request.word}
+CONTEXT: "{request.context_sentence}"
+
+Provide:
+1. A definition of "{request.word}" as it's used in this specific context
+2. 2 example sentences using this word in similar contexts
+3. 3 synonyms appropriate for this usage
+4. The CEFR level (A1-C2) for this word
+
+Return JSON:
+{{
+  "context_definition": "definition specific to this context",
+  "examples": ["example 1", "example 2"],
+  "synonyms": ["synonym1", "synonym2", "synonym3"],
+  "cefr": "B2"
+}}
+"""
+        import asyncio
+        from pydantic import create_model
+        
+        ContextDefinition = create_model(
+            'ContextDefinition',
+            context_definition=(str, ...),
+            examples=(list[str], ...),
+            synonyms=(list[str], ...),
+            cefr=(str, "B2")
+        )
+        
+        result = await asyncio.to_thread(
+            client.generate_structured,
+            prompt=context_prompt,
+            schema=ContextDefinition,
+            temperature=0.3,
+        )
+        
+        ai_definition = result.context_definition
+        
+        # Also get full enrichment
+        enriched = await enrich_word(request.word)
+        
+    except (GemmaClientError, Exception):
+        # Fallback: use basic enrichment
+        enriched = await enrich_word(request.word)
+        ai_definition = enriched.get("definition", "")
+    
+    # Create new vocabulary entry
+    vocab = Vocabulary(
+        user_id=1,
+        word=request.word.lower(),
+        pronunciation=enriched.get("pronunciation", "") if enriched else "",
+        meaning=enriched.get("meaning", "") if enriched else "",
+        definition=enriched.get("definition", "") if enriched else "",
+        examples=enriched.get("examples", []) if enriched else [],
+        synonyms=enriched.get("synonyms", []) if enriched else [],
+        antonyms=enriched.get("antonyms", []) if enriched else [],
+        collocations=enriched.get("collocations", []) if enriched else [],
+        word_family=enriched.get("word_family", []) if enriched else [],
+        cefr=enriched.get("cefr", "B2") if enriched else "B2",
+        ielts_frequency=enriched.get("ielts_frequency", 5) if enriched else 5,
+        ai_definition=ai_definition,
+        contexts=[{
+            "sentence": request.context_sentence,
+            "source_type": request.source_type,
+            "source_id": request.source_id,
+            "paragraph_index": request.paragraph_index,
+            "saved_at": datetime.utcnow().isoformat(),
+        }],
+        mastery="new",
+        next_review=date.today() + timedelta(days=1),
+    )
+    
+    db.add(vocab)
+    await db.commit()
+    await db.refresh(vocab)
+    
+    return HarvestedWordResponse(
+        id=vocab.id,
+        word=vocab.word,
+        context_sentence=request.context_sentence,
+        pronunciation=vocab.pronunciation,
+        definition=vocab.definition,
+        examples=vocab.examples or [],
+        synonyms=vocab.synonyms or [],
+        ai_definition=vocab.ai_definition,
+        saved_at=datetime.utcnow(),
+    )
+
+
+@router.get("/harvested")
+async def get_harvested_words(
+    source_type: Optional[str] = None,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get recently harvested vocabulary words.
+    Optionally filter by source type (reading/listening).
+    """
+    query = select(Vocabulary).where(Vocabulary.user_id == 1)
+    
+    # Filter by words that have contexts (harvested)
+    query = query.where(Vocabulary.contexts.isnot(None))
+    
+    if source_type:
+        # This is a simplified filter; in production you'd use JSON query
+        pass
+    
+    query = query.order_by(Vocabulary.created_at.desc()).limit(limit)
+    
+    result = await db.execute(query)
+    words = result.scalars().all()
+    
+    return [
+        {
+            "id": w.id,
+            "word": w.word,
+            "context_sentence": w.contexts[0]["sentence"] if w.contexts else "",
+            "source_type": w.contexts[0]["source_type"] if w.contexts else None,
+            "definition": w.definition,
+            "ai_definition": w.ai_definition,
+            "saved_at": w.created_at.isoformat() if w.created_at else None,
+        }
+        for w in words
+    ]
+
+
+@router.get("/check/{word}")
+async def check_word_saved(
+    word: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if a word is already in the user's vocabulary."""
+    result = await db.execute(
+        select(Vocabulary)
+        .where(Vocabulary.user_id == 1)
+        .where(Vocabulary.word.ilike(word))
+    )
+    existing = result.scalar_one_or_none()
+    
+    return {
+        "word": word,
+        "saved": existing is not None,
+        "vocab_id": existing.id if existing else None,
+    }

@@ -150,3 +150,115 @@ async def adversarial_generate(request: AdversarialGenerationRequest):
     except Exception as e:
         logger.exception("Unexpected adversarial error")
         raise HTTPException(status_code=500, detail=f"Adversarial generation failed: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+#  Error DNA Agent
+# ─────────────────────────────────────────────
+
+from services.agents.error_dna import ErrorDNAAgent, ErrorDNAResult
+
+class ErrorDNARequest(BaseModel):
+    """Request for Error DNA analysis."""
+    user_id: int
+    period_days: int = 30  # How many days of history to analyze
+
+
+class ErrorDNAProfileRequest(BaseModel):
+    """Request with pre-computed error profile."""
+    error_profile: dict  # CrossModuleErrorProfile as dict
+
+
+@router.post("/error-dna/analyse", response_model=ErrorDNAResult)
+async def error_dna_analyse(request: ErrorDNAProfileRequest):
+    """
+    Run Error DNA analysis on a pre-computed error profile.
+    
+    This endpoint accepts the error_profile directly (from the analytics aggregation layer).
+    Returns identified error signatures with recommendations.
+    
+    For the full workflow, use /error-dna/analyse-user instead.
+    """
+    agent = ErrorDNAAgent()
+    try:
+        return await agent.analyse(request.error_profile)
+    except GemmaClientError as e:
+        logger.error("Error DNA analysis failed: %s", e)
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        logger.exception("Unexpected error DNA error")
+        raise HTTPException(status_code=500, detail=f"Error DNA analysis failed: {str(e)}")
+
+
+@router.post("/error-dna/analyse-user")
+async def error_dna_analyse_user(request: ErrorDNARequest):
+    """
+    Run full Error DNA analysis for a user.
+    
+    This endpoint:
+    1. Fetches the cross-module error profile from the analytics layer
+    2. Runs the Error DNA agent to identify signatures
+    3. Returns the full analysis
+    
+    Note: Does NOT persist the results. Use the weekly job or manual save for persistence.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from shared.database import get_db
+    from services.analytics.aggregation import build_cross_module_profile
+    from datetime import datetime, timedelta
+    
+    agent = ErrorDNAAgent()
+    
+    try:
+        # Get DB session
+        async for db in get_db():
+            # Build error profile
+            since = datetime.utcnow() - timedelta(days=request.period_days)
+            profile = await build_cross_module_profile(request.user_id, db, since)
+            
+            # Run analysis
+            result = await agent.analyse_from_aggregation(profile)
+            
+            return {
+                "analysis": result.model_dump(),
+                "profile_summary": {
+                    "weakest_skill": profile.weakest_skill,
+                    "strongest_skill": profile.strongest_skill,
+                    "total_patterns": len(profile.top_error_patterns),
+                    "period_start": profile.period_start.isoformat(),
+                    "period_end": profile.period_end.isoformat(),
+                }
+            }
+    except GemmaClientError as e:
+        logger.error("Error DNA analysis failed: %s", e)
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        logger.exception("Unexpected error DNA error")
+        raise HTTPException(status_code=500, detail=f"Error DNA analysis failed: {str(e)}")
+
+
+# ─────────────────────────────────────────────
+#  Error DNA Micro-Exercises
+# ─────────────────────────────────────────────
+
+from services.agents.error_dna import MicroExerciseSet, MicroExerciseRequest, generate_micro_exercises
+
+@router.post("/error-dna/micro-exercises", response_model=MicroExerciseSet)
+async def error_dna_micro_exercises(request: MicroExerciseRequest):
+    """
+    Generate targeted micro-exercises for a specific error signature.
+    
+    Use this to generate practice drills that directly address an identified
+    error pattern. Returns 3-5 exercises with explanations.
+    
+    The exercises are designed to help the student recognize and avoid
+    the specific error pattern in future practice.
+    """
+    try:
+        return await generate_micro_exercises(request)
+    except GemmaClientError as e:
+        logger.error("Micro-exercise generation failed: %s", e)
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        logger.exception("Unexpected micro-exercise error")
+        raise HTTPException(status_code=500, detail=f"Micro-exercise generation failed: {str(e)}")

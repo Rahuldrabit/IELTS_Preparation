@@ -158,14 +158,11 @@ async def get_daily_plan():
 
     response = llm_client.chat_sync(messages)
 
-    try:
-        if "{" in response:
-            start = response.find("{")
-            end = response.rfind("}") + 1
-            plan_data = json.loads(response[start:end])
-            return plan_data
-    except:
-        pass
+    # Use shared JSON parser
+    from shared.parsing import parse_json_from_response
+    plan_data = parse_json_from_response(response)
+    if plan_data:
+        return plan_data
 
     return {
         "tasks": [
@@ -195,10 +192,19 @@ class WritingScoreResponse(BaseModel):
     corrections: list[dict]
 
 
-@router.post("/score-writing")
+@router.post("/score-writing", deprecated=True)
 async def score_writing(request: WritingScoreRequest):
-    """Score writing using multi-step agent pipeline."""
-
+    """
+    [DEPRECATED] Score writing using legacy multi-step pipeline.
+    
+    This endpoint is deprecated. Use /writing/submit instead, which uses
+    the Council of Judges for more accurate scoring.
+    
+    This endpoint is retained for backward compatibility.
+    """
+    # Use shared JSON parser
+    from shared.parsing import parse_json_from_response
+    
     # Step 1: Error detection
     error_prompt = f"""Analyze this IELTS essay for errors.
 Return JSON: {{"corrections": [{{"incorrect": "...", "correct": "...", "explanation": "...", "type": "grammar|vocabulary"}}]}}
@@ -209,14 +215,9 @@ Essay:
     error_response = llm_client.chat_sync([{"role": "user", "content": error_prompt}])
 
     corrections = []
-    try:
-        if "{" in error_response:
-            start = error_response.find("{")
-            end = error_response.rfind("}") + 1
-            data = json.loads(error_response[start:end])
-            corrections = data.get("corrections", [])
-    except:
-        corrections = []
+    error_data = parse_json_from_response(error_response)
+    if error_data:
+        corrections = error_data.get("corrections", [])
 
     # Step 2: Scoring
     score_prompt = f"""Score this IELTS essay on a scale of 1-9 for:
@@ -228,15 +229,9 @@ Essay:
 
     score_response = llm_client.chat_sync([{"role": "user", "content": score_prompt}])
 
-    try:
-        if "{" in score_response:
-            start = score_response.find("{")
-            end = score_response.rfind("}") + 1
-            scores = json.loads(score_response[start:end])
-        else:
-            scores = {"task_response": 6.5, "coherence": 6.5, "lexical": 6.5, "grammar": 6.5}
-    except:
-        scores = {"task_response": 6.5, "coherence": 6.5, "lexical": 6.5, "grammar": 6.5}
+    scores = parse_json_from_response(score_response) or {
+        "task_response": 6.5, "coherence": 6.5, "lexical": 6.5, "grammar": 6.5
+    }
 
     overall = (scores.get("task_response", 6.5) + scores.get("coherence", 6.5) + scores.get("lexical", 6.5) + scores.get("grammar", 6.5)) / 4
 
@@ -275,21 +270,19 @@ Return JSON with: pronunciation, meaning, definition, examples[], synonyms[], an
 
     response = llm_client.chat_sync([{"role": "user", "content": prompt}])
 
-    try:
-        if "{" in response:
-            start = response.find("{")
-            end = response.rfind("}") + 1
-            data = json.loads(response[start:end])
-            data["word"] = request.word
-            data["examples"] = data.get("examples", [])
-            data["synonyms"] = data.get("synonyms", [])
-            data["antonyms"] = data.get("antonyms", [])
-            data["collocations"] = data.get("collocations", [])
-            data["word_family"] = data.get("word_family", [])
-            data["ielts_frequency"] = data.get("ielts_frequency", 5)
-            return data
-    except:
-        pass
+    # Use shared JSON parser
+    from shared.parsing import parse_json_from_response
+    
+    data = parse_json_from_response(response)
+    if data:
+        data["word"] = request.word
+        data["examples"] = data.get("examples", [])
+        data["synonyms"] = data.get("synonyms", [])
+        data["antonyms"] = data.get("antonyms", [])
+        data["collocations"] = data.get("collocations", [])
+        data["word_family"] = data.get("word_family", [])
+        data["ielts_frequency"] = data.get("ielts_frequency", 5)
+        return data
 
     return {
         "word": request.word,
@@ -301,8 +294,8 @@ Return JSON with: pronunciation, meaning, definition, examples[], synonyms[], an
         "antonyms": [],
         "collocations": [],
         "word_family": [],
-        "cefr": "B2",
         "ielts_frequency": 5,
+        "cefr": "B2",
     }
 
 
@@ -337,6 +330,53 @@ Return JSON array: [{{"id": 1, "question": "...", "correct_answer": "...", "expl
         pass
 
     return {"exercises": []}
+
+
+# ============ Capabilities ============
+
+class CapabilitiesResponse(BaseModel):
+    """AI provider capabilities for frontend feature detection."""
+    provider: str              # openrouter | google | lmstudio | none
+    transcription: bool        # True only when in Google mode
+    vision: bool               # True when provider supports image input
+    structured_output: bool    # True for all providers
+    status: str                # ok | error
+
+
+@router.get("/capabilities", response_model=CapabilitiesResponse)
+async def get_capabilities():
+    """
+    Get AI provider capabilities.
+    Frontend uses this to determine which features are available:
+    - transcription: requires Google AI SDK (GEMINI_API_KEY)
+    - vision: available in Google mode
+    - structured_output: available in all modes
+    """
+    try:
+        client = get_gemma_client()
+        provider = client.mode
+        
+        # Transcription only works in Google mode
+        transcription_available = provider == "google"
+        
+        # Vision available in Google mode (image_path support)
+        vision_available = provider == "google"
+        
+        return CapabilitiesResponse(
+            provider=provider,
+            transcription=transcription_available,
+            vision=vision_available,
+            structured_output=True,
+            status="ok",
+        )
+    except Exception as e:
+        return CapabilitiesResponse(
+            provider="none",
+            transcription=False,
+            vision=False,
+            structured_output=False,
+            status=f"error: {str(e)}",
+        )
 
 
 # ============ Gemma 4 Health Check ============
@@ -484,17 +524,13 @@ Return JSON matching the SpeakingFeedback schema."""
 
         transcript = await asyncio.to_thread(client.transcribe_audio, tmp_path, analysis_prompt)
 
-        # Step 2: If the response contains structured data, try to parse it
-        # The transcription may include the analysis in one response
-        try:
-            if "{" in transcript:
-                start = transcript.find("{")
-                end = transcript.rfind("}") + 1
-                data = json.loads(transcript[start:end])
-                feedback = SpeakingFeedback.model_validate(data)
-            else:
-                # Transcription only — generate analysis separately
-                score_prompt = f"""Analyze this IELTS speaking transcript and provide scores.
+        # Step 2: Parse structured data from transcription
+        from shared.parsing import parse_json_to_model
+        
+        feedback = parse_json_to_model(transcript, SpeakingFeedback)
+        if not feedback:
+            # Transcription only — generate analysis separately
+            score_prompt = f"""Analyze this IELTS speaking transcript and provide scores.
 
 TRANSCRIPT:
 {transcript}
@@ -503,27 +539,28 @@ Score on Fluency, Lexical Resource, Grammar, and Pronunciation (each 1-9).
 Give overall band and 3 improvement suggestions.
 Return JSON matching SpeakingFeedback schema."""
 
+            try:
                 feedback = await asyncio.to_thread(
                     client.generate_structured,
                     prompt=score_prompt,
                     schema=SpeakingFeedback,
                     temperature=0.3,
                 )
-        except Exception:
-            # Fallback: construct basic feedback from transcription
-            feedback = SpeakingFeedback(
-                transcript=transcript,
-                band=6.0,
-                fluency=6.0,
-                lexical=6.0,
-                grammar=6.0,
-                pronunciation=6.0,
-                suggestions=[
-                    "Try to speak more fluently with fewer hesitations.",
-                    "Use a wider range of vocabulary to demonstrate lexical resource.",
-                    "Practice complex sentence structures to improve grammatical range.",
-                ],
-            )
+            except Exception:
+                # Fallback: construct basic feedback from transcription
+                feedback = SpeakingFeedback(
+                    transcript=transcript,
+                    band=6.0,
+                    fluency=6.0,
+                    lexical=6.0,
+                    grammar=6.0,
+                    pronunciation=6.0,
+                    suggestions=[
+                        "Try to speak more fluently with fewer hesitations.",
+                        "Use a wider range of vocabulary to demonstrate lexical resource.",
+                        "Practice complex sentence structures to improve grammatical range.",
+                    ],
+                )
 
         return feedback.model_dump()
 
@@ -662,6 +699,136 @@ class ShadowingAssessmentResponse(BaseModel):
     overall_similarity: float     # average of the three
     feedback: str
     specific_errors: list[str]    # up to 3 specific issues
+    word_by_word: Optional[list[dict]] = None  # word-level comparison
+    pacing_analysis: Optional[dict] = None     # timing analysis
+
+
+class FallbackShadowingAssessment(BaseModel):
+    """Assessment using Web Speech API transcription (no Google AI)."""
+    passed: bool
+    phoneme_accuracy: float
+    rhythm_score: float
+    connected_speech_score: float
+    overall_similarity: float
+    feedback: str
+    specific_errors: list[str]
+    word_by_word: list[dict]
+    note: str = "Assessment based on text comparison (Web Speech API mode)"
+
+
+def _calculate_word_similarity(word1: str, word2: str) -> float:
+    """Calculate similarity between two words using Levenshtein distance."""
+    if not word1 or not word2:
+        return 0.0
+    
+    word1, word2 = word1.lower(), word2.lower()
+    
+    if word1 == word2:
+        return 1.0
+    
+    # Simple Levenshtein distance
+    m, n = len(word1), len(word2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    
+    for i in range(m + 1):
+        dp[i][0] = i
+    for j in range(n + 1):
+        dp[0][j] = j
+    
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if word1[i-1] == word2[j-1]:
+                dp[i][j] = dp[i-1][j-1]
+            else:
+                dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+    
+    distance = dp[m][n]
+    max_len = max(m, n)
+    return max(0.0, 1.0 - distance / max_len)
+
+
+def _fallback_shadowing_assessment(
+    user_transcript: str,
+    target_text: str,
+    target_band: float = 7.5,
+) -> FallbackShadowingAssessment:
+    """
+    Calculate shadowing assessment using pure text comparison.
+    Used when Google AI transcription is unavailable.
+    """
+    # Tokenize
+    target_words = target_text.split()
+    user_words = user_transcript.split()
+    
+    # Word-by-word comparison
+    word_by_word = []
+    matched_count = 0
+    
+    for i, target_word in enumerate(target_words):
+        if i < len(user_words):
+            user_word = user_words[i]
+            similarity = _calculate_word_similarity(target_word, user_word)
+            is_match = similarity >= 0.8
+            
+            if is_match:
+                matched_count += 1
+                
+            word_by_word.append({
+                "target": target_word,
+                "user": user_word if i < len(user_words) else "",
+                "similarity": round(similarity, 2),
+                "match": is_match,
+            })
+        else:
+            word_by_word.append({
+                "target": target_word,
+                "user": "",
+                "similarity": 0.0,
+                "match": False,
+            })
+    
+    # Calculate scores
+    phoneme_accuracy = matched_count / len(target_words) if target_words else 0.0
+    
+    # Rhythm score based on word count ratio and sentence structure match
+    word_count_ratio = min(len(user_words), len(target_words)) / max(len(user_words), len(target_words)) if target_words else 0.0
+    
+    # Connected speech: check for missing articles, prepositions
+    function_words = {"the", "a", "an", "in", "on", "at", "to", "for", "of", "and", "but", "or"}
+    target_functions = [w for w in target_words if w.lower() in function_words]
+    user_functions = [w for w in user_words if w.lower() in function_words]
+    function_match = len(set(f.lower() for f in target_functions) & set(f.lower() for f in user_functions))
+    connected_speech_score = function_match / len(target_functions) if target_functions else word_count_ratio
+    
+    # Rhythm score combines word count ratio and sentence length consistency
+    rhythm_score = (word_count_ratio + phoneme_accuracy) / 2
+    
+    overall_similarity = (phoneme_accuracy + rhythm_score + connected_speech_score) / 3
+    
+    # Generate feedback
+    errors = []
+    if phoneme_accuracy < 0.75:
+        errors.append(f"Word accuracy is {int(phoneme_accuracy * 100)}% — aim for 75%+")
+    if rhythm_score < 0.70:
+        errors.append("Work on matching the pace and structure of the model")
+    if connected_speech_score < 0.70:
+        errors.append("Don't skip function words like articles and prepositions")
+    
+    feedback = "Good effort! " if overall_similarity >= 0.7 else "Keep practicing! "
+    feedback += f"You matched {matched_count} of {len(target_words)} words correctly."
+    
+    passed = phoneme_accuracy >= 0.75 and rhythm_score >= 0.70
+    
+    return FallbackShadowingAssessment(
+        passed=passed,
+        phoneme_accuracy=round(phoneme_accuracy, 2),
+        rhythm_score=round(rhythm_score, 2),
+        connected_speech_score=round(connected_speech_score, 2),
+        overall_similarity=round(overall_similarity, 2),
+        feedback=feedback,
+        specific_errors=errors[:3],
+        word_by_word=word_by_word,
+    )
 
 
 @router.post("/assess-shadowing")
@@ -738,7 +905,15 @@ Return JSON:
         return result
 
     except GemmaClientError as e:
-        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+        # Return fallback assessment indicator
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "error": "transcription_unavailable",
+                "message": "Google AI transcription not available. Use Web Speech API fallback.",
+                "fallback_endpoint": "/api/agent/assess-shadowing-fallback",
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Shadowing assessment failed: {str(e)}")
     finally:
@@ -746,6 +921,21 @@ Return JSON:
             os.unlink(tmp_path)
         except Exception:
             pass
+
+
+@router.post("/assess-shadowing-fallback", response_model=FallbackShadowingAssessment)
+async def assess_shadowing_fallback(
+    user_transcript: str = Form(...),
+    target_tier_text: str = Form(...),
+    target_band: float = Form(7.5),
+):
+    """
+    Fallback shadowing assessment using text comparison.
+    Used when Web Speech API is used for transcription (non-Google mode).
+    
+    Frontend calls this after getting transcript from Web Speech API.
+    """
+    return _fallback_shadowing_assessment(user_transcript, target_tier_text, target_band)
 
 
 # ============ Council of Judges ============

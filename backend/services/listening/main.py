@@ -23,6 +23,12 @@ from shared.schemas import (
     SubmitAndAnalyzeResponse,
     QuestionExplanation,
 )
+from shared.exam_questions import (
+    iter_generated_questions,
+    build_question_groups_public,
+)
+from shared.answer_utils import answers_match
+from shared.parsing import parse_json_from_response
 from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
 
 
@@ -141,20 +147,20 @@ async def _store_generated_listening(
     db.add(section)
     await db.flush()
 
-    for group in exam.question_groups:
-        for q in group.questions:
-            question = ListeningQuestion(
-                section_id=section.id,
-                question_text=q.prompt_text,
-                question_type=group.question_type,
-                group_id=group.group_id,
-                question_number=q.question_number,
-                options=q.local_options,
-                correct_answer=q.backend_evaluation.correct_answer,
-                explanation=q.backend_evaluation.evidence_text,
-                question_evaluation=q.backend_evaluation.model_dump(),
-            )
-            db.add(question)
+    # Create questions using shared utility
+    for group, question in iter_generated_questions(exam):
+        db_question = ListeningQuestion(
+            section_id=section.id,
+            question_text=question.prompt_text,
+            question_type=group.question_type,
+            group_id=group.group_id,
+            question_number=question.question_number,
+            options=question.local_options,
+            correct_answer=question.backend_evaluation.correct_answer,
+            explanation=question.backend_evaluation.evidence_text,
+            question_evaluation=question.backend_evaluation.model_dump(),
+        )
+        db.add(db_question)
 
     await db.commit()
     await db.refresh(section)
@@ -166,36 +172,17 @@ def _to_public_response(
     session_id: int,
 ) -> GeneratedListeningResponse:
     """Convert DB section to frontend-safe response (strip answers)."""
-    questions_by_group: dict[str, list] = {}
-    for q in section.questions:
-        gid = q.group_id or "group_1"
-        if gid not in questions_by_group:
-            questions_by_group[gid] = []
-        questions_by_group[gid].append(q)
-
-    question_groups = []
-    for group_id, questions in questions_by_group.items():
-        qtype = questions[0].question_type if questions else "UNKNOWN"
-        instructions_map = {
+    
+    # Use shared utility to build question groups
+    question_groups = build_question_groups_public(
+        questions=section.questions,
+        instructions_map={
             "FILL_BLANK": "Complete the notes below. Write ONE WORD AND/OR A NUMBER for each answer.",
             "MULTIPLE_CHOICE": "Choose the correct answer, A, B, C or D.",
             "MATCHING_INFORMATION": "Match each statement with the correct speaker. Write A, B or C.",
-        }
-        question_groups.append(QuestionGroupPublic(
-            group_id=group_id,
-            question_type=qtype,
-            instructions=instructions_map.get(qtype, "Answer the following questions."),
-            questions=[
-                QuestionItemPublic(
-                    id=q.id,
-                    question_number=q.question_number or (idx + 1),
-                    prompt_text=q.question_text,
-                    local_options=q.options,
-                    question_type=q.question_type,
-                )
-                for idx, q in enumerate(sorted(questions, key=lambda x: x.question_number or 0))
-            ],
-        ))
+        },
+        get_prompt_text=lambda q: q.question_text,
+    )
 
     return GeneratedListeningResponse(
         section_id=section.id,
@@ -238,10 +225,9 @@ Return ONLY valid JSON, no other text."""
     try:
         client = get_gemma_client()
         response = await asyncio.to_thread(client.generate_text, prompt, None, 0.3)
-        if "{" in response:
-            start = response.find("{")
-            end = response.rfind("}") + 1
-            return json.loads(response[start:end])
+        result = parse_json_from_response(response)
+        if result:
+            return result
     except Exception:
         pass
 
@@ -406,10 +392,7 @@ async def submit_and_analyze(
         if not question:
             continue
 
-        is_correct = (
-            str(answer.answer).strip().lower()
-            == str(question.correct_answer).strip().lower()
-        )
+        is_correct = answers_match(answer.answer, question.correct_answer)
         if is_correct:
             correct_count += 1
 
@@ -526,4 +509,452 @@ async def get_impulse_response():
         content=wav_bytes,
         media_type="audio/wav",
         headers={"Cache-Control": "max-age=86400"},
+    )
+
+
+# ─────────────────────────────────────────────
+#  Dictation Mode Endpoints
+# ─────────────────────────────────────────────
+
+class DictationSegment(BaseModel):
+    """A single dictation segment with target text."""
+    id: int
+    text: str                    # Target text for this segment
+    word_count: int
+    difficulty: str = "medium"   # easy | medium | hard
+    order: int                   # Sequence order
+
+
+class DictationContentResponse(BaseModel):
+    """Response with dictation content segmented into sentences."""
+    section_id: int
+    session_id: int
+    title: str
+    total_segments: int
+    segments: list[DictationSegment]
+    tts_config: TTSConfig
+
+
+class DictationScoreRequest(BaseModel):
+    """Request for scoring a dictation attempt."""
+    segment_id: int
+    typed_text: str
+
+
+class WordDiff(BaseModel):
+    """Word-level diff result."""
+    word: str
+    status: str  # correct | missing | extra | substituted
+    expected: Optional[str] = None
+    user_input: Optional[str] = None
+    is_phonetic_confusion: bool = False
+    phonetic_pair: Optional[str] = None
+
+
+class DictationScoreResponse(BaseModel):
+    """Response with word-level scoring."""
+    segment_id: int
+    accuracy: float              # 0.0 - 1.0
+    correct_words: int
+    total_words: int
+    word_diffs: list[WordDiff]
+    phonetic_confusions: list[dict]
+
+
+# Common phonetic confusions in English
+PHONETIC_CONFUSIONS = {
+    # Numbers
+    "thirteen": "thirty", "thirty": "thirteen",
+    "fourteen": "forty", "forty": "fourteen",
+    "fifteen": "fifty", "fifty": "fifteen",
+    "sixteen": "sixty", "sixty": "sixteen",
+    # Similar sounds
+    "their": "there", "there": "their",
+    "affect": "effect", "effect": "affect",
+    "accept": "except", "except": "accept",
+    "advice": "advise", "advise": "advice",
+    "practice": "practise", "practise": "practice",
+    "principal": "principle", "principle": "principal",
+    "stationary": "stationery", "stationery": "stationary",
+    "complement": "compliment", "compliment": "complement",
+    "bear": "bare", "bare": "bear",
+    "brake": "break", "break": "brake",
+    "buy": "bye", "bye": "buy",
+    "cell": "sell", "sell": "cell",
+    "flower": "flour", "flour": "flower",
+    "hear": "here", "here": "hear",
+    "hole": "whole", "whole": "hole",
+    "know": "no", "no": "know",
+    "mail": "male", "male": "mail",
+    "meat": "meet", "meet": "meat",
+    "peace": "piece", "piece": "peace",
+    "plain": "plane", "plane": "plain",
+    "right": "write", "write": "right",
+    "sea": "see", "see": "sea",
+    "son": "sun", "sun": "son",
+    "steel": "steal", "steal": "steel",
+    "tail": "tale", "tale": "tail",
+    "weak": "week", "week": "weak",
+    "wear": "where", "where": "wear",
+    "wood": "would", "would": "wood",
+}
+
+
+@router.post("/dictation/generate")
+async def generate_dictation(
+    config: Optional[GenerateListeningRequest] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate dictation content from a listening script.
+    Segments the transcript into sentences for pause-and-type practice.
+    """
+    import re
+    
+    # Default config if not provided
+    if config is None:
+        config = GenerateListeningRequest(
+            section=2,
+            accent="british",
+            speed="normal",
+            topic="everyday life",
+            question_count=0,  # No questions for dictation
+        )
+    
+    try:
+        # Generate or use existing listening content
+        client = get_gemma_client()
+        
+        # For dictation, generate a simpler, clearer script
+        prompt = f"""Generate a clear IELTS-style listening script for dictation practice.
+
+SECTION: {config.section} ({"everyday social" if config.section <= 2 else "educational/academic"} context)
+TOPIC: {config.topic}
+ACCENT: {config.accent}
+
+REQUIREMENTS:
+1. Create a monologue or dialogue of about 200-300 words
+2. Use clear, natural English appropriate for IELTS
+3. Include proper names and numbers for realistic dictation
+4. Avoid overly complex sentence structures
+5. Make it sound like a real IELTS listening extract
+
+Return JSON:
+{{
+  "title": "A descriptive title",
+  "script": "The full script text with natural sentence boundaries..."
+}}
+
+Return ONLY valid JSON."""
+
+        response = await asyncio.to_thread(
+            client.generate_text,
+            prompt,
+            system_prompt="You are an IELTS content creator. Return only valid JSON.",
+            temperature=0.7,
+        )
+        
+        # Parse response using shared utility
+        data = parse_json_from_response(response)
+        if not data:
+            raise ValueError("Invalid response from AI")
+        
+        script = data.get("script", "")
+        title = data.get("title", f"Dictation - {config.topic}")
+        
+        # Segment into sentences
+        # Use regex to split on sentence boundaries
+        sentences = re.split(r'(?<=[.!?])\s+', script)
+        sentences = [s.strip() for s in sentences if s.strip() and len(s.strip()) > 10]
+        
+        # Create listening section for storage
+        tts = _get_tts_config(config.accent, config.speed)
+        section = ListeningSection(
+            title=title,
+            transcript=script,
+            duration=max(60, int(len(script.split()) / 2.5)),
+            difficulty="dictation",
+            generation_params={
+                "mode": "dictation",
+                "section": config.section,
+                "accent": config.accent,
+                "speed": config.speed,
+                "topic": config.topic,
+            },
+            tts_config=tts.model_dump(),
+        )
+        db.add(section)
+        await db.flush()
+        
+        # Create session
+        session = PracticeSession(
+            user_id=1,
+            skill="listening",
+            listening_section_id=section.id,
+            started_at=datetime.utcnow(),
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(section)
+        await db.refresh(session)
+        
+        # Create segments
+        segments = []
+        for i, sentence in enumerate(sentences):
+            words = sentence.split()
+            # Estimate difficulty by word length and sentence complexity
+            avg_word_len = sum(len(w) for w in words) / len(words) if words else 5
+            if avg_word_len > 6 or len(words) > 20:
+                difficulty = "hard"
+            elif avg_word_len > 4 or len(words) > 10:
+                difficulty = "medium"
+            else:
+                difficulty = "easy"
+            
+            segments.append(DictationSegment(
+                id=i + 1,
+                text=sentence,
+                word_count=len(words),
+                difficulty=difficulty,
+                order=i,
+            ))
+        
+        return DictationContentResponse(
+            section_id=section.id,
+            session_id=session.id,
+            title=title,
+            total_segments=len(segments),
+            segments=segments,
+            tts_config=tts,
+        )
+        
+    except GemmaClientError as e:
+        raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dictation generation failed: {str(e)}")
+
+
+@router.post("/dictation/score", response_model=DictationScoreResponse)
+async def score_dictation(
+    request: DictationScoreRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Score a dictation attempt with word-level diff and phonetic confusion detection.
+    """
+    # Get the segment's target text (from the request context)
+    # Note: In a real implementation, you'd fetch the target text from DB
+    # For now, we'll compute the diff and store misses
+    
+    typed_words = request.typed_text.strip().split()
+    # Target text would come from the segment - for now we'll need it passed
+    # This is a simplified version
+    
+    # Actually, we need the target text. Let me adjust the approach:
+    # The frontend should pass the target text along with the typed text
+    # For now, return a placeholder
+    
+    raise HTTPException(
+        status_code=400, 
+        detail="Please use /dictation/score-full with both target and typed text"
+    )
+
+
+class DictationScoreFullRequest(BaseModel):
+    """Request for scoring with both target and typed text."""
+    segment_id: int
+    session_id: int
+    target_text: str
+    typed_text: str
+
+
+@router.post("/dictation/score-full", response_model=DictationScoreResponse)
+async def score_dictation_full(
+    request: DictationScoreFullRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Full dictation scoring with word-level diff and phonetic confusion detection.
+    Persists misses to UserResponse for Error DNA integration.
+    """
+    target_words = request.target_text.strip().split()
+    typed_words = request.typed_text.strip().split()
+    
+    # Normalize words for comparison
+    def normalize(w):
+        return w.lower().strip('.,!?;:"\'-')
+    
+    target_normalized = [normalize(w) for w in target_words]
+    typed_normalized = [normalize(w) for w in typed_words]
+    
+    # Compute word-level alignment using simple diff
+    word_diffs = []
+    phonetic_confusions = []
+    
+    # Simple alignment: compare position by position
+    max_len = max(len(target_words), len(typed_words))
+    correct_count = 0
+    
+    for i in range(max_len):
+        target_word = target_words[i] if i < len(target_words) else None
+        typed_word = typed_words[i] if i < len(typed_words) else None
+        
+        target_norm = target_normalized[i] if i < len(target_normalized) else None
+        typed_norm = typed_normalized[i] if i < len(typed_normalized) else None
+        
+        if target_word is None:
+            # Extra word typed
+            word_diffs.append(WordDiff(
+                word=typed_word,
+                status="extra",
+                user_input=typed_word,
+                is_phonetic_confusion=False,
+            ))
+        elif typed_word is None:
+            # Missing word
+            word_diffs.append(WordDiff(
+                word=target_word,
+                status="missing",
+                expected=target_word,
+                is_phonetic_confusion=False,
+            ))
+        elif target_norm == typed_norm:
+            # Correct
+            word_diffs.append(WordDiff(
+                word=target_word,
+                status="correct",
+                is_phonetic_confusion=False,
+            ))
+            correct_count += 1
+        else:
+            # Substitution - check for phonetic confusion
+            is_phonetic = False
+            phonetic_pair = None
+            
+            if target_norm in PHONETIC_CONFUSIONS:
+                if PHONETIC_CONFUSIONS[target_norm] == typed_norm:
+                    is_phonetic = True
+                    phonetic_pair = f"{target_norm}/{typed_norm}"
+            
+            word_diffs.append(WordDiff(
+                word=target_word,
+                status="substituted",
+                expected=target_word,
+                user_input=typed_word,
+                is_phonetic_confusion=is_phonetic,
+                phonetic_pair=phonetic_pair,
+            ))
+            
+            if is_phonetic:
+                phonetic_confusions.append({
+                    "expected": target_word,
+                    "typed": typed_word,
+                    "pair": phonetic_pair,
+                })
+    
+    accuracy = correct_count / len(target_words) if target_words else 0.0
+    
+    # Store the miss as a UserResponse for Error DNA integration
+    if accuracy < 1.0:
+        # Get or create a "dictation" session entry
+        session_result = await db.execute(
+            select(PracticeSession).where(PracticeSession.id == request.session_id)
+        )
+        session = session_result.scalar_one_or_none()
+        
+        if session:
+            # Create a synthetic response record for dictation miss
+            response = UserResponse(
+                session_id=session.id,
+                user_answer=request.typed_text,
+                correct_answer=request.target_text,
+                is_correct=(accuracy >= 0.8),  # Consider mostly correct as correct
+                error_type="dictation_mishearing" if phonetic_confusions else "dictation_spelling",
+                error_details={
+                    "segment_id": request.segment_id,
+                    "accuracy": accuracy,
+                    "phonetic_confusions": phonetic_confusions,
+                    "word_diffs": [wd.model_dump() for wd in word_diffs],
+                },
+            )
+            db.add(response)
+            await db.commit()
+    
+    return DictationScoreResponse(
+        segment_id=request.segment_id,
+        accuracy=round(accuracy, 3),
+        correct_words=correct_count,
+        total_words=len(target_words),
+        word_diffs=word_diffs,
+        phonetic_confusions=phonetic_confusions,
+    )
+
+
+class MishearingPair(BaseModel):
+    """A single mishearing pair with count."""
+    expected: str
+    typed: str
+    count: int
+    last_occurrence: datetime
+
+
+class MishearingProfileResponse(BaseModel):
+    """User's mishearing profile from dictation practice."""
+    total_attempts: int
+    total_phonetic_confusions: int
+    top_confusions: list[MishearingPair]
+
+
+@router.get("/dictation/profile", response_model=MishearingProfileResponse)
+async def get_dictation_profile(
+    user_id: int = 1,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the user's mishearing profile from dictation practice.
+    Aggregates all phonetic confusions for Error DNA.
+    """
+    from collections import defaultdict
+    
+    # Get all dictation-related user responses
+    result = await db.execute(
+        select(UserResponse, PracticeSession)
+        .join(PracticeSession, UserResponse.session_id == PracticeSession.id)
+        .where(and_(
+            PracticeSession.user_id == user_id,
+            UserResponse.error_type == "dictation_mishearing",
+        ))
+        .order_by(UserResponse.created_at.desc())
+    )
+    rows = result.all()
+    
+    # Aggregate phonetic confusions
+    confusion_counts: dict[tuple[str, str], int] = defaultdict(int)
+    confusion_last_seen: dict[tuple[str, str], datetime] = {}
+    
+    for response, session in rows:
+        details = response.error_details or {}
+        for confusion in details.get("phonetic_confusions", []):
+            key = (confusion.get("expected", ""), confusion.get("typed", ""))
+            confusion_counts[key] += 1
+            confusion_last_seen[key] = response.created_at
+    
+    # Sort by count
+    top_confusions = sorted(
+        confusion_counts.items(),
+        key=lambda x: -x[1]
+    )[:10]
+    
+    return MishearingProfileResponse(
+        total_attempts=len(rows),
+        total_phonetic_confusions=sum(confusion_counts.values()),
+        top_confusions=[
+            MishearingPair(
+                expected=expected,
+                typed=typed,
+                count=count,
+                last_occurrence=confusion_last_seen.get((expected, typed), datetime.utcnow()),
+            )
+            for (expected, typed), count in top_confusions
+        ],
     )

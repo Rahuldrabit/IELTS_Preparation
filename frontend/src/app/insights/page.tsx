@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { mockProgress, mockMistakeTrends, mockWeeklyReport, mockBandScore, mockUser } from '@/lib/mock-data/user'
+import { ErrorReportCard } from '@/components/features/insights/ErrorReportCard'
+import { MishearingProfileCard } from '@/components/features/insights/MishearingProfileCard'
+import { BandTrajectoryCard } from '@/components/features/insights/BandTrajectoryCard'
 import { cn } from '@/lib/utils'
 import { fadeInUp, staggerItem, staggerContainer } from '@/lib/animations'
 
@@ -205,6 +208,33 @@ export default function InsightsPage() {
             </div>
           </CardContent>
         </Card>
+      </motion.div>
+
+      {/* Band Score Trajectory */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
+        <BandTrajectoryCard />
+      </motion.div>
+
+      {/* Error DNA Report */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <ErrorReportCard />
+      </motion.div>
+
+      {/* Mishearing Profile (from Dictation) */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+      >
+        <MishearingProfileCard />
       </motion.div>
     </div>
   )

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared import get_db
 from shared.models import MockTest, MockTestSection, User
+from shared.answer_utils import normalize_answer
 from services.mocktest.baseline_data import (
     get_baseline_section_content,
     SECTION_TIMING,
@@ -25,6 +26,7 @@ from services.mocktest.imported_tests import (
     get_imported_test_list,
     IMPORTED_TESTS,
 )
+from services.mocktest.question_utils import score_objective_section
 
 
 # ============ Router ============
@@ -291,9 +293,10 @@ async def start_mock_test(
     )
 
     # Load content for baseline, or leave empty for generated (filled per-section)
+    baseline_content = None
     if test_type == "baseline":
-        content = get_baseline_section_content()
-        mock_test.section_data = content
+        baseline_content = get_baseline_section_content()
+        mock_test.section_data = baseline_content
     else:
         mock_test.section_data = None
 
@@ -305,9 +308,8 @@ async def start_mock_test(
         difficulty_config = None
         content_data = None
 
-        if test_type == "baseline":
-            content = get_baseline_section_content()
-            content_data = content.get(section_type)
+        if test_type == "baseline" and baseline_content:
+            content_data = baseline_content.get(section_type)
             difficulty_config = content_data.get("difficulty_config") if content_data else None
 
         section = MockTestSection(
@@ -550,7 +552,7 @@ async def submit_section(
 
     # Score the section immediately for listening/reading (objective answers)
     if section_type in ("listening", "reading") and section.content_data:
-        score_info = _score_objective_section(section_type, section.content_data, request.answers)
+        score_info = score_objective_section(section_type, section.content_data, request.answers)
         section.score = score_info["score"]
         section.band_estimate = score_info["band_estimate"]
 
@@ -590,95 +592,6 @@ async def abandon_mock_test(
     await db.commit()
 
     return {"status": "abandoned", "id": mock_test_id}
-
-
-# ============ Scoring Helpers ============
-
-def _score_objective_section(
-    section_type: str,
-    content_data: dict,
-    user_answers: dict,
-) -> dict:
-    """
-    Score listening/reading sections by comparing answers to correct answers.
-    Returns score percentage and estimated IELTS band.
-    """
-    correct_count = 0
-    total_questions = 0
-
-    if section_type == "listening":
-        sections = content_data.get("sections", [])
-        for section in sections:
-            for question in section.get("questions", []):
-                total_questions += 1
-                q_id = str(question["id"])
-                user_answer = user_answers.get(q_id, "").strip().lower()
-                correct = str(question["correct_answer"]).strip().lower()
-                if user_answer == correct:
-                    correct_count += 1
-
-    elif section_type == "reading":
-        passages = content_data.get("passages", [])
-        for passage in passages:
-            for question in passage.get("questions", []):
-                total_questions += 1
-                q_id = str(question["id"])
-                user_answer = user_answers.get(q_id, "").strip().lower()
-                correct = str(question["correct_answer"]).strip().lower()
-                if user_answer == correct:
-                    correct_count += 1
-
-    if total_questions == 0:
-        return {"score": 0, "band_estimate": 0}
-
-    score_pct = (correct_count / total_questions) * 100
-    band_estimate = _score_to_band(correct_count, total_questions)
-
-    return {
-        "score": round(score_pct, 1),
-        "band_estimate": band_estimate,
-        "correct": correct_count,
-        "total": total_questions,
-    }
-
-
-def _score_to_band(correct: int, total: int) -> float:
-    """
-    Convert raw score to IELTS band estimate.
-    Uses approximate IELTS band conversion (40 questions scale).
-    """
-    # Normalize to 40-question scale
-    if total == 0:
-        return 0.0
-    normalized = (correct / total) * 40
-
-    # IELTS approximate band conversion table (Academic)
-    if normalized >= 39:
-        return 9.0
-    elif normalized >= 37:
-        return 8.5
-    elif normalized >= 35:
-        return 8.0
-    elif normalized >= 33:
-        return 7.5
-    elif normalized >= 30:
-        return 7.0
-    elif normalized >= 27:
-        return 6.5
-    elif normalized >= 23:
-        return 6.0
-    elif normalized >= 19:
-        return 5.5
-    elif normalized >= 15:
-        return 5.0
-    elif normalized >= 12:
-        return 4.5
-    elif normalized >= 9:
-        return 4.0
-    elif normalized >= 6:
-        return 3.5
-    else:
-        return 3.0
 
 
 # ============ Evaluate Endpoint ============

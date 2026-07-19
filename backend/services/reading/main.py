@@ -20,6 +20,12 @@ from shared.schemas import (
     SubmitAndAnalyzeResponse,
     QuestionExplanation,
 )
+from shared.exam_questions import (
+    iter_generated_questions,
+    build_question_groups_public,
+)
+from shared.answer_utils import answers_match
+from shared.parsing import parse_json_from_response
 from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
 
 
@@ -131,21 +137,20 @@ async def store_generated_exam(
     db.add(passage)
     await db.flush()  # Get the ID
 
-    # Create questions from question groups
-    for group in exam.question_groups:
-        for q in group.questions:
-            question = ReadingQuestion(
-                passage_id=passage.id,
-                question_text=q.prompt_text,
-                question_type=group.question_type,
-                group_id=group.group_id,
-                question_number=q.question_number,
-                options=q.local_options,
-                correct_answer=q.backend_evaluation.correct_answer,
-                explanation=q.backend_evaluation.evidence_text,  # Store evidence as explanation
-                question_evaluation=q.backend_evaluation.model_dump(),
-            )
-            db.add(question)
+    # Create questions from question groups using shared utility
+    for group, question in iter_generated_questions(exam):
+        db_question = ReadingQuestion(
+            passage_id=passage.id,
+            question_text=question.prompt_text,
+            question_type=group.question_type,
+            group_id=group.group_id,
+            question_number=question.question_number,
+            options=question.local_options,
+            correct_answer=question.backend_evaluation.correct_answer,
+            explanation=question.backend_evaluation.evidence_text,
+            question_evaluation=question.backend_evaluation.model_dump(),
+        )
+        db.add(db_question)
 
     await db.commit()
     await db.refresh(passage, attribute_names=["questions"])
@@ -157,45 +162,12 @@ async def store_generated_exam(
 
 def to_public_response(passage: ReadingPassage, session_id: int, paragraphs: list) -> GeneratedPassageResponse:
     """Convert DB passage to frontend-safe response (strip answers)."""
-
-    # Group questions by group_id
-    questions_by_group = {}
-    for q in passage.questions:
-        if q.group_id not in questions_by_group:
-            questions_by_group[q.group_id] = []
-        questions_by_group[q.group_id].append(q)
-
-    question_groups = []
-    for group_id, questions in questions_by_group.items():
-        # Get question type from first question
-        question_type = questions[0].question_type if questions else "UNKNOWN"
-
-        # Build instructions based on type
-        instructions_map = {
-            "TRUE_FALSE_NOT_GIVEN": "Do the following statements agree with the information given in the passage? Write TRUE if the statement agrees with the information, FALSE if the statement contradicts the information, or NOT GIVEN if there is no information on this.",
-            "MATCHING_HEADINGS": "The passage has paragraphs labeled A-G. Which paragraph contains the following information? Write the correct letter, A-G.",
-            "SUMMARY_COMPLETION": "Complete the summary below. Choose ONE WORD ONLY from the passage for each answer.",
-            "MULTIPLE_CHOICE": "Choose the correct answer, A, B, C or D.",
-            "SENTENCE_COMPLETION": "Complete each sentence with the correct ending, A-G, below.",
-        }
-
-        question_groups.append(QuestionGroupPublic(
-            group_id=group_id or "group_1",
-            question_type=question_type,
-            instructions=instructions_map.get(question_type, "Answer the following questions."),
-            questions=[
-                QuestionItemPublic(
-                    id=q.id,
-                    question_number=q.question_number or (idx + 1),
-                    prompt_text=q.question_text,
-                    local_options=q.options,
-                    question_type=q.question_type,
-                    # Includes trap metadata for adversarial questions; None for standard
-                    question_evaluation=q.question_evaluation if hasattr(q, 'question_evaluation') else None,
-                )
-                for idx, q in enumerate(sorted(questions, key=lambda x: x.question_number or 0))
-            ],
-        ))
+    
+    # Use shared utility to build question groups (filters out correct_answer)
+    question_groups = build_question_groups_public(
+        questions=passage.questions,
+        get_group_id=lambda q: q.group_id or "group_1",
+    )
 
     return GeneratedPassageResponse(
         passage_id=passage.id,
@@ -382,6 +354,31 @@ async def submit_answers(
     db: AsyncSession = Depends(get_db),
 ):
     """Submit answers for a reading session and get scored results."""
+    session, passage, questions = await _load_active_reading_session(session_id, db)
+    correct_count, results, total = await _evaluate_submissions(
+        session, passage, questions, submission.answers, db
+    )
+    score = (correct_count / total * 100) if total > 0 else 0
+    _complete_session(session, score)
+    await db.commit()
+
+    return {
+        "session_id": session.id,
+        "score": round(score, 1),
+        "total": total,
+        "band_estimate": round((score / 100) * 9, 1),
+        "results": results,
+    }
+
+
+# ============ Submission Helpers ============
+
+
+async def _load_active_reading_session(
+    session_id: int,
+    db: AsyncSession,
+) -> tuple:
+    """Load and validate an active reading session with its questions."""
     result = await db.execute(
         select(PracticeSession).where(
             and_(PracticeSession.id == session_id, PracticeSession.skill == "reading")
@@ -405,19 +402,27 @@ async def submit_answers(
     )
     questions = {q.id: q for q in questions_result.scalars().all()}
 
+    return session, passage, questions
+
+
+async def _evaluate_submissions(
+    session: PracticeSession,
+    passage: ReadingPassage,
+    questions: dict,
+    answers: list,
+    db: AsyncSession,
+) -> tuple:
+    """Evaluate submitted answers and store responses. Returns (correct_count, results, total)."""
     correct_count = 0
     results = []
     total = len(questions)
 
-    for answer in submission.answers:
+    for answer in answers:
         question = questions.get(answer.question_id)
         if not question:
             continue
 
-        is_correct = (
-            str(answer.answer).strip().lower()
-            == str(question.correct_answer).strip().lower()
-        )
+        is_correct = answers_match(answer.answer, question.correct_answer)
 
         if is_correct:
             correct_count += 1
@@ -439,22 +444,14 @@ async def submit_answers(
             "explanation": question.explanation if not is_correct else None,
         })
 
-    score = (correct_count / total * 100) if total > 0 else 0
-    band_estimate = round((score / 100) * 9, 1)
+    return correct_count, results, total
 
+
+def _complete_session(session: PracticeSession, score: float) -> None:
+    """Mark a session as complete with calculated score."""
     session.score = score
-    session.band_estimate = band_estimate
+    session.band_estimate = round((score / 100) * 9, 1)
     session.finished_at = datetime.utcnow()
-
-    await db.commit()
-
-    return {
-        "session_id": session.id,
-        "score": round(score, 1),
-        "total": total,
-        "band_estimate": band_estimate,
-        "results": results,
-    }
 
 
 @router.post("/sessions/{session_id}/submit-and-analyze")
@@ -467,33 +464,10 @@ async def submit_and_analyze(
     Submit answers and get detailed AI-powered error analysis.
     Returns per-question explanations including why_wrong and correct_strategy.
     """
-    # Fetch session
-    result = await db.execute(
-        select(PracticeSession).where(
-            and_(PracticeSession.id == session_id, PracticeSession.skill == "reading")
-        )
-    )
-    session = result.scalar_one_or_none()
+    # Load session (reuses helper)
+    session, passage, questions = await _load_active_reading_session(session_id, db)
 
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if session.finished_at:
-        raise HTTPException(status_code=400, detail="Session already submitted")
-
-    # Fetch passage and questions
-    passage_result = await db.execute(
-        select(ReadingPassage).where(ReadingPassage.id == session.passage_id)
-    )
-    passage = passage_result.scalar_one()
-
-    questions_result = await db.execute(
-        select(ReadingQuestion).where(ReadingQuestion.passage_id == passage.id)
-    )
-    questions_list = questions_result.scalars().all()
-    questions = {q.id: q for q in questions_list}
-
-    # Score and collect results
+    # Score and analyze
     correct_count = 0
     results = []
     total = len(questions)
@@ -503,10 +477,7 @@ async def submit_and_analyze(
         if not question:
             continue
 
-        is_correct = (
-            str(answer.answer).strip().lower()
-            == str(question.correct_answer).strip().lower()
-        )
+        is_correct = answers_match(answer.answer, question.correct_answer)
 
         if is_correct:
             correct_count += 1
@@ -562,14 +533,9 @@ async def submit_and_analyze(
                 correct_strategy=analysis.get("correct_strategy", ""),
             ))
 
-    # Update session
+    # Complete session
     score = (correct_count / total * 100) if total > 0 else 0
-    band_estimate = round((score / 100) * 9, 1)
-
-    session.score = score
-    session.band_estimate = band_estimate
-    session.finished_at = datetime.utcnow()
-
+    _complete_session(session, score)
     await db.commit()
 
     return SubmitAndAnalyzeResponse(
@@ -577,7 +543,7 @@ async def submit_and_analyze(
         score=round(score, 1),
         total=total,
         correct=correct_count,
-        band_estimate=band_estimate,
+        band_estimate=round((score / 100) * 9, 1),
         results=results,
     )
 
@@ -614,12 +580,10 @@ Return ONLY valid JSON, no other text."""
         client = get_gemma_client()
         response = await asyncio.to_thread(client.generate_text, prompt, None, 0.3)
 
-        # Try to parse JSON from response
-        import json
-        if "{" in response:
-            start = response.find("{")
-            end = response.rfind("}") + 1
-            return json.loads(response[start:end])
+        # Use shared JSON parser
+        result = parse_json_from_response(response)
+        if result:
+            return result
     except Exception:
         pass
 

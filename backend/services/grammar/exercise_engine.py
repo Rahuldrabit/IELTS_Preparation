@@ -224,8 +224,11 @@ Return a JSON array of {count} exercises. Return ONLY valid JSON array, no other
         user_answer: str
     ) -> Dict[str, Any]:
         """Evaluate a user's answer using AI."""
-        # Simple exact-match first
-        if user_answer.strip().lower() == correct_answer.strip().lower():
+        # Use shared answer comparison
+        from shared.answer_utils import answers_match
+        from shared.parsing import parse_json_from_response
+        
+        if answers_match(user_answer, correct_answer):
             return {
                 "is_correct": True,
                 "feedback": "Correct! Well done.",
@@ -253,10 +256,8 @@ Return JSON: {{"is_correct": true/false, "feedback": "brief feedback", "explanat
                     temperature=0.2
                 )
                 
-                if "{" in raw:
-                    start = raw.find("{")
-                    end = raw.rfind("}") + 1
-                    result = json.loads(raw[start:end])
+                result = parse_json_from_response(raw)
+                if result:
                     return {
                         "is_correct": result.get("is_correct", False),
                         "feedback": result.get("feedback", ""),
@@ -266,7 +267,7 @@ Return JSON: {{"is_correct": true/false, "feedback": "brief feedback", "explanat
                 pass
         
         # Fallback: case-insensitive comparison
-        is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
+        is_correct = answers_match(user_answer, correct_answer)
         return {
             "is_correct": is_correct,
             "feedback": "Correct!" if is_correct else f"Incorrect. The expected answer is: {correct_answer}",

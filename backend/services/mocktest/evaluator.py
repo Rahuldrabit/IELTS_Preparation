@@ -10,7 +10,9 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
-from services.mocktest.main import _score_to_band
+from services.mocktest.question_utils import iter_objective_questions, _score_to_band
+from shared.answer_utils import normalize_answer
+from shared.parsing import parse_json_from_response
 
 logger = logging.getLogger(__name__)
 
@@ -431,31 +433,14 @@ def _build_question_type_breakdown(section_map: dict) -> list[dict]:
             continue
 
         answers = section.answers
-        if section_type == "listening":
-            items = section.content_data.get("sections", [])
-            for item in items:
-                for q in item.get("questions", []):
-                    qtype = q.get("type", "UNKNOWN")
-                    if qtype not in type_stats:
-                        type_stats[qtype] = {"correct": 0, "total": 0}
-                    type_stats[qtype]["total"] += 1
-                    user_ans = str(answers.get(str(q["id"]), "")).strip().lower()
-                    correct = str(q["correct_answer"]).strip().lower()
-                    if user_ans == correct:
-                        type_stats[qtype]["correct"] += 1
-
-        elif section_type == "reading":
-            passages = section.content_data.get("passages", [])
-            for passage in passages:
-                for q in passage.get("questions", []):
-                    qtype = q.get("type", "UNKNOWN")
-                    if qtype not in type_stats:
-                        type_stats[qtype] = {"correct": 0, "total": 0}
-                    type_stats[qtype]["total"] += 1
-                    user_ans = str(answers.get(str(q["id"]), "")).strip().lower()
-                    correct = str(q["correct_answer"]).strip().lower()
-                    if user_ans == correct:
-                        type_stats[qtype]["correct"] += 1
+        for qid, qtype, answer_key, correct in iter_objective_questions(section_type, section.content_data):
+            if qtype not in type_stats:
+                type_stats[qtype] = {"correct": 0, "total": 0}
+            type_stats[qtype]["total"] += 1
+            
+            user_ans = answers.get(answer_key, "")
+            if normalize_answer(user_ans) == normalize_answer(correct):
+                type_stats[qtype]["correct"] += 1
 
     return [
         {
@@ -471,30 +456,8 @@ def _build_question_type_breakdown(section_map: dict) -> list[dict]:
 
 
 def _parse_json(response: str) -> Optional[dict]:
-    """Extract JSON from AI response."""
-    if not response:
-        return None
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError:
-        pass
-    if "```json" in response:
-        start = response.find("```json") + 7
-        end = response.find("```", start)
-        if end > start:
-            try:
-                return json.loads(response[start:end].strip())
-            except json.JSONDecodeError:
-                pass
-    if "{" in response:
-        start = response.find("{")
-        end = response.rfind("}") + 1
-        if end > start:
-            try:
-                return json.loads(response[start:end])
-            except json.JSONDecodeError:
-                pass
-    return None
+    """Extract JSON from AI response. Delegates to shared utility."""
+    return parse_json_from_response(response)
 
 
 def _default_vocab_analysis() -> dict:

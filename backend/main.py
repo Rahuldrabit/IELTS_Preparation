@@ -18,16 +18,27 @@ from services.ai_agent.main import router as ai_agent_router
 from services.agents.router import router as agents_router
 from services.mocktest.main import router as mocktest_router
 from services.telemetry.main import router as telemetry_router
+from services.speaking.main import router as speaking_router
+from services.journey.main import router as journey_router
 # Importing the agents package triggers all @registry.register decorators
 import services.agents  # noqa: F401
+# Scheduler for weekly batch jobs
+from shared.scheduler import start_scheduler, shutdown_scheduler, list_scheduled_jobs
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     print("Starting IELTS Tutor Backend...")
+    start_scheduler()
+    
+    # Register weekly jobs
+    from services.analytics.main import register_weekly_error_dna_job
+    register_weekly_error_dna_job()
+    
     yield
     print("Shutting down IELTS Tutor Backend...")
+    shutdown_scheduler()
 
 
 # Create main FastAPI application
@@ -54,6 +65,13 @@ async def health_check():
     return {"status": "ok", "service": "ielts-tutor"}
 
 
+# Scheduler status
+@app.get("/scheduler/jobs")
+async def scheduler_jobs():
+    """List all scheduled jobs."""
+    return {"jobs": list_scheduled_jobs()}
+
+
 # Mount all service routers with /api prefix
 app.include_router(profile_router, prefix="/api")
 app.include_router(reading_router, prefix="/api")
@@ -67,6 +85,8 @@ app.include_router(ai_agent_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 app.include_router(mocktest_router, prefix="/api")
 app.include_router(telemetry_router, prefix="/api")
+app.include_router(speaking_router, prefix="/api")
+app.include_router(journey_router, prefix="/api")
 
 
 if __name__ == "__main__":
