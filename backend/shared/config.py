@@ -78,6 +78,16 @@ class Settings(BaseSettings):
         alias="GEMMA_MODEL",
     )
 
+    # LM Studio (local inference)
+    lmstudio_model: str = Field(
+        default="local-model",
+        alias="LMSTUDIO_MODEL",
+    )
+    lmstudio_max_tokens: int = Field(
+        default=4096,
+        alias="LMSTUDIO_MAX_TOKENS",
+    )
+
     # Service ports
     profile_service_port: int = Field(default=8001, alias="PROFILE_SERVICE_PORT")
     reading_service_port: int = Field(default=8002, alias="READING_SERVICE_PORT")
