@@ -131,6 +131,7 @@ secrets/
 credentials/
 *.keystore
 *.jks
+backend/.env.production
 
 IMPLEMENTATION_SUMMARY.md
 FUTURE_IMPLEMENTATION.md
