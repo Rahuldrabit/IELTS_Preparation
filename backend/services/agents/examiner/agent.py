@@ -191,7 +191,7 @@ async def process_student_response(
     """
     Process a student's response and generate the examiner's next turn.
     """
-    from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+    from services.llm import get_llm_client, LLMClientError
     import json
     
     # Add student message to session
@@ -208,7 +208,7 @@ async def process_student_response(
     
     # Generate follow-up question
     try:
-        client = get_gemma_client()
+        client = get_llm_client()
         
         # Build conversation context
         context = "\n".join([
@@ -241,18 +241,18 @@ Return JSON only.
         
         return result
         
-    except GemmaClientError:
+    except LLMClientError:
         # Fallback: generate simple follow-up
         return generate_fallback_response(session)
 
 
 async def generate_session_end(session: ExaminerSession) -> ExaminerResponse:
     """Generate final feedback and band estimate."""
-    from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+    from services.llm import get_llm_client, LLMClientError
     import json
     
     try:
-        client = get_gemma_client()
+        client = get_llm_client()
         
         # Build full conversation
         conversation = "\n".join([
@@ -288,7 +288,7 @@ Return JSON only.
         
         return result
         
-    except GemmaClientError:
+    except LLMClientError:
         # Fallback feedback
         return ExaminerResponse(
             message="Thank you for your answers today. That concludes our speaking session.",

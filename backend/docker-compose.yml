@@ -7,9 +7,8 @@ services:
     container_name: ielts-postgres
     environment:
       POSTGRES_USER: ielts
-      POSTGRES_PASSWORD: ielts_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ielts_secret_prod}
       POSTGRES_DB: ieltsdb
-      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

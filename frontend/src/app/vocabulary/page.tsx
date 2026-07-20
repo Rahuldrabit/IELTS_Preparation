@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { vocabularyApi } from '@/lib/services/vocabulary'
 import {
   BookOpen,
   Search,
@@ -61,15 +62,8 @@ export default function VocabularyPage() {
   const loadVocabulary = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (filter !== 'all') params.set('filter', filter)
-      if (search) params.set('search', search)
-      
-      const response = await fetch(`/api/vocabulary?${params}`)
-      if (response.ok) {
-        const data = await response.json()
-        setWords(data)
-      }
+      const response = await vocabularyApi.getVocabulary({ filter, search })
+      setWords(response)
     } catch (error) {
       console.error('Failed to load vocabulary:', error)
     } finally {
@@ -79,10 +73,8 @@ export default function VocabularyPage() {
   
   const loadStats = async () => {
     try {
-      const response = await fetch('/api/vocabulary/stats')
-      if (response.ok) {
-        setStats(await response.json())
-      }
+      const data = await vocabularyApi.getStats()
+      setStats(data)
     } catch (error) {
       console.error('Failed to load stats:', error)
     }
@@ -90,15 +82,12 @@ export default function VocabularyPage() {
   
   const startReview = async () => {
     try {
-      const response = await fetch('/api/vocabulary/due')
-      if (response.ok) {
-        const dueWords = await response.json()
-        if (dueWords.length > 0) {
-          setWords(dueWords)
-          setReviewMode(true)
-          setCurrentReviewIndex(0)
-          setShowDefinition(false)
-        }
+      const dueWords = await vocabularyApi.getDueVocabulary()
+      if (dueWords.length > 0) {
+        setWords(dueWords)
+        setReviewMode(true)
+        setCurrentReviewIndex(0)
+        setShowDefinition(false)
       }
     } catch (error) {
       console.error('Failed to load due words:', error)
@@ -109,14 +98,7 @@ export default function VocabularyPage() {
     if (!words[currentReviewIndex]) return
     
     try {
-      await fetch('/api/vocabulary/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          word_id: words[currentReviewIndex].id,
-          correct,
-        }),
-      })
+      await vocabularyApi.reviewWord(words[currentReviewIndex].id, correct)
       
       // Move to next word or end review
       if (currentReviewIndex < words.length - 1) {

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { analyticsApi } from '@/lib/services/analytics'
 
 interface SkillTrajectory {
   skill: string
@@ -49,9 +50,7 @@ export function BandTrajectoryCard({ targetBand = 7.0, className }: BandTrajecto
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/analytics/trajectory?target_band=${targetBand}`)
-      if (!response.ok) throw new Error('Failed to load trajectory')
-      const data = await response.json()
+      const data = await analyticsApi.getTrajectory(targetBand)
       setTrajectory(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

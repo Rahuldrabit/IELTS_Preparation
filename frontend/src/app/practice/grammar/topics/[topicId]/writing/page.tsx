@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
@@ -12,25 +12,22 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import { grammarApi } from '@/lib/services/grammar'
-import { useGrammarStore } from '@/lib/store/grammarStore'
+import { getTopicById } from '@/lib/data/grammar'
 import type { WritingPracticeResponse, SentenceFeedback } from '@/lib/types/grammar'
 
 export default function GrammarWritingPage() {
   const params = useParams()
   const router = useRouter()
   const topicId = Number(params.topicId)
-  const { lessonContent, fetchLessonContent } = useGrammarStore()
+
+  // Static frontend data — no API needed for topic info
+  const topicData = getTopicById(topicId)
+  const topicName = topicData?.topic_name || `Topic ${topicId}`
 
   const [sentences, setSentences] = useState<string[]>(['', '', '', '', ''])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<WritingPracticeResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!lessonContent || lessonContent.topic_id !== topicId) {
-      fetchLessonContent(topicId)
-    }
-  }, [topicId, lessonContent, fetchLessonContent])
 
   const handleSentenceChange = (index: number, value: string) => {
     setSentences(prev => {
@@ -58,7 +55,7 @@ export default function GrammarWritingPage() {
     try {
       const response = await grammarApi.practiceWriting(topicId, {
         sentences: validSentences,
-        target_grammar: lessonContent?.topic_name
+        target_grammar: topicName
       })
       setFeedback(response)
     } catch (err) {
@@ -74,7 +71,6 @@ export default function GrammarWritingPage() {
     setError(null)
   }
 
-  const topicName = lessonContent?.topic_name || `Topic ${topicId}`
   const filledCount = sentences.filter(s => s.trim().length > 0).length
 
   return (

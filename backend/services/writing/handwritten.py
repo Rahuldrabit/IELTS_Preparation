@@ -13,7 +13,9 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from fastapi import UploadFile, HTTPException
 
-from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+from services.agents.writing import WritingAgent, ExtractedEssay
+from services.agents.council import run_council
+from services.llm import LLMClientError
 
 
 # ─────────────────────────────────────────────
@@ -60,57 +62,11 @@ async def extract_text_from_image(
     3. Estimate extraction confidence
     """
     try:
-        client = get_gemma_client()
+        agent = WritingAgent()
+        result = await agent.extract_text_from_image(image_path)
+        return result
         
-        if client.mode != "google":
-            raise GemmaClientError("Handwritten essay extraction requires Google AI mode with vision support")
-        
-        # Read image file
-        with open(image_path, "rb") as f:
-            image_data = f.read()
-        
-        # Use VLM to extract text
-        prompt = """You are an expert at reading handwritten English text from images.
-
-TASK: Extract ALL text from this handwritten IELTS essay image.
-
-INSTRUCTIONS:
-1. Read every word carefully, including those that are crossed out or corrected
-2. Preserve the original paragraph structure
-3. If a word is illegible, write [ILLEGIBLE]
-4. Maintain original spelling (don't correct errors)
-5. Include any notes or markings on the page
-
-Return the extracted text with paragraph breaks preserved.
-
-Also provide:
-- Your confidence in the extraction (0.0 to 1.0)
-- Any warnings about difficult-to-read sections
-
-Format your response as JSON:
-{
-  "text": "The extracted essay text...",
-  "confidence": 0.85,
-  "warnings": ["Some words in paragraph 2 were difficult to read"]
-}
-"""
-        
-        # Call VLM with image
-        result = client.generate_with_image(
-            prompt=prompt,
-            image_path=image_path,
-            schema=ExtractedEssay,
-            temperature=0.1,  # Low temperature for accuracy
-        )
-        
-        return ExtractedEssay(
-            text=result.text,
-            word_count=len(result.text.split()),
-            confidence=result.confidence,
-            warnings=result.warnings,
-        )
-        
-    except GemmaClientError as e:
+    except LLMClientError as e:
         raise HTTPException(
             status_code=503,
             detail=f"VLM extraction failed: {str(e)}"
@@ -134,12 +90,13 @@ async def score_handwritten_essay(
     extracted = await extract_text_from_image(image_path, task_type)
     
     # Step 2: Score the extracted text using existing writing scoring
-    from services.ai_agent.main import score_writing, WritingScoreRequest
-    
-    score_result = await score_writing(WritingScoreRequest(
+    council_report = await run_council(
         essay=extracted.text,
         task_type=task_type,
-    ))
+        task_prompt=topic if topic else "General Writing Task",
+        target_band=7.0
+    )
+    chief = council_report.chief
     
     # Step 3: Combine results
     all_warnings = list(extracted.warnings)
@@ -150,13 +107,13 @@ async def score_handwritten_essay(
         extracted_text=extracted.text,
         word_count=extracted.word_count,
         extraction_confidence=extracted.confidence,
-        task_response=score_result.task_response,
-        coherence=score_result.coherence,
-        lexical=score_result.lexical,
-        grammar=score_result.grammar,
-        overall=score_result.overall,
-        feedback=score_result.feedback,
-        corrections=score_result.corrections,
+        task_response=chief.task_response,
+        coherence=chief.coherence,
+        lexical=chief.lexical,
+        grammar=chief.grammar,
+        overall=chief.overall_band,
+        feedback={"overall": chief.priority_improvements},
+        corrections=[],
         warnings=all_warnings,
     )
 

@@ -17,6 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { speakingApi } from '@/lib/services/speaking'
 import { cn } from '@/lib/utils'
 
 interface Message {
@@ -62,11 +63,8 @@ export default function ExaminerChatPage() {
   
   const loadTopics = async () => {
     try {
-      const response = await fetch('/api/speaking/examiner/topics')
-      if (response.ok) {
-        const data = await response.json()
-        setTopics(data)
-      }
+      const data = await speakingApi.getExaminerTopics()
+      setTopics(data)
     } catch (error) {
       console.error('Failed to load topics:', error)
     }
@@ -75,18 +73,10 @@ export default function ExaminerChatPage() {
   const startSession = async (selectedTopic?: string) => {
     setLoading(true)
     try {
-      const response = await fetch('/api/speaking/examiner/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          part,
-          topic: selectedTopic || topic,
-        }),
+      const data = await speakingApi.createExaminerSession({
+        part,
+        topic: (selectedTopic || topic) as string,
       })
-      
-      if (!response.ok) throw new Error('Failed to create session')
-      
-      const data = await response.json()
       setSession(data.session_state)
       setMessages([{
         id: '1',
@@ -120,19 +110,11 @@ export default function ExaminerChatPage() {
     
     setLoading(true)
     try {
-      const response = await fetch('/api/speaking/examiner/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: session.session_id,
-          message: studentMessage,
-          session_state: session,
-        }),
+      const data = await speakingApi.chatExaminer({
+        session_id: session.session_id,
+        message: studentMessage,
+        session_state: session,
       })
-      
-      if (!response.ok) throw new Error('Chat failed')
-      
-      const data = await response.json()
       
       // Update session state
       setSession(data.session_state)

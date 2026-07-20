@@ -9,7 +9,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+from services.agents.mocktest import MocktestEvaluatorAgent
 from services.mocktest.question_utils import iter_objective_questions, _score_to_band
 from shared.answer_utils import normalize_answer
 from shared.parsing import parse_json_from_response
@@ -173,47 +173,15 @@ async def _evaluate_writing(section) -> float:
     if not task1_essay and not task2_essay:
         return 5.0
 
-    prompt = f"""You are an expert IELTS Writing examiner. Score these essays.
-
-TASK 1 ESSAY ({len(task1_essay.split())} words):
-{task1_essay[:2000]}
-
-TASK 2 ESSAY ({len(task2_essay.split())} words):
-{task2_essay[:3000]}
-
-Score each on IELTS criteria (1-9):
-- Task Achievement / Task Response
-- Coherence and Cohesion
-- Lexical Resource
-- Grammatical Range and Accuracy
-
-Calculate the overall Writing band score.
-Task 2 is weighted more heavily (2/3 of the final score).
-
-Return ONLY a JSON object:
-{{
-    "task_1_band": float,
-    "task_2_band": float,
-    "overall_writing_band": float,
-    "criteria": {{
-        "task_response": float,
-        "coherence": float,
-        "lexical_resource": float,
-        "grammar": float
-    }},
-    "key_feedback": ["point1", "point2", "point3"]
-}}"""
-
+    agent = MocktestEvaluatorAgent()
     try:
-        client = get_gemma_client()
-        response = await asyncio.to_thread(client.generate_text, prompt, None, 0.2)
-        parsed = _parse_json(response)
+        parsed = await agent.evaluate_writing(task=None, user_essay=task1_essay + "\n\n" + task2_essay)
         if parsed and "overall_writing_band" in parsed:
             # Store feedback in section
             if section:
                 section.section_feedback = parsed
             return float(parsed["overall_writing_band"])
-    except (GemmaClientError, Exception) as e:
+    except Exception as e:
         logger.error(f"Writing evaluation failed: {e}")
 
     # Fallback: estimate based on word count
@@ -251,38 +219,14 @@ async def _evaluate_speaking(section) -> float:
 
     all_text = "\n".join(transcripts)
 
-    prompt = f"""You are an expert IELTS Speaking examiner. Evaluate these speaking responses.
-
-TRANSCRIPTS:
-{all_text[:4000]}
-
-Score on IELTS criteria (1-9):
-- Fluency and Coherence
-- Lexical Resource
-- Grammatical Range and Accuracy
-- Pronunciation (infer from text patterns, fillers, and self-corrections)
-
-Return ONLY a JSON object:
-{{
-    "overall_speaking_band": float,
-    "criteria": {{
-        "fluency": float,
-        "lexical_resource": float,
-        "grammar": float,
-        "pronunciation": float
-    }},
-    "key_feedback": ["point1", "point2", "point3"]
-}}"""
-
+    agent = MocktestEvaluatorAgent()
     try:
-        client = get_gemma_client()
-        response = await asyncio.to_thread(client.generate_text, prompt, None, 0.2)
-        parsed = _parse_json(response)
+        parsed = await agent.evaluate_speaking(user_audio_text=all_text, context="Mocktest full speaking section")
         if parsed and "overall_speaking_band" in parsed:
             if section:
                 section.section_feedback = parsed
             return float(parsed["overall_speaking_band"])
-    except (GemmaClientError, Exception) as e:
+    except Exception as e:
         logger.error(f"Speaking evaluation failed: {e}")
 
     # Fallback: estimate based on transcript length/complexity
@@ -337,53 +281,21 @@ async def _run_ai_diagnostic(
 
     combined_text = (writing_text + " " + speaking_text).strip()
 
-    prompt = f"""You are an expert IELTS diagnostic analyst. Produce a comprehensive analysis.
-
-SCORES:
-- Overall Band: {overall_band}
-- Listening: {listening_band}
-- Reading: {reading_band}
-- Writing: {writing_band}
-- Speaking: {speaking_band}
-- Target Band: {target_band}
-- Gap to Target: {target_band - overall_band:.1f}
-
-QUESTION TYPE ACCURACY:
-{q_summary}
-
-WRITING + SPEAKING TEXT SAMPLE (for vocabulary/grammar analysis):
-{combined_text[:3000]}
-
-Produce a diagnostic report. Return ONLY valid JSON:
-{{
-    "vocabulary_analysis": {{
-        "cefr_level": "B1|B2|C1|C2",
-        "lexical_diversity_score": 0-100,
-        "academic_word_percentage": 0-100,
-        "strengths": ["str1", "str2"],
-        "weaknesses": ["str1", "str2"]
-    }},
-    "grammar_analysis": {{
-        "error_rate": errors_per_100_words,
-        "sentence_complexity": {{"simple": pct, "compound": pct, "complex": pct}},
-        "common_mistakes": ["mistake1", "mistake2"],
-        "strengths": ["str1", "str2"]
-    }},
-    "top_strengths": ["strength1", "strength2", "strength3"],
-    "key_weaknesses": ["weakness1", "weakness2", "weakness3"],
-    "estimated_weeks_to_target": integer_or_null,
-    "recommended_focus_areas": ["area1", "area2", "area3"],
-    "study_plan_adjustments": ["adjustment1", "adjustment2", "adjustment3"],
-    "summary_text": "2-3 sentence overall summary of performance and next steps"
-}}"""
-
+    agent = MocktestEvaluatorAgent()
     try:
-        client = get_gemma_client()
-        response = await asyncio.to_thread(client.generate_text, prompt, None, 0.3)
-        parsed = _parse_json(response)
+        parsed = await agent.evaluate_diagnostic(
+            overall_band=overall_band,
+            listening_band=listening_band,
+            reading_band=reading_band,
+            writing_band=writing_band,
+            speaking_band=speaking_band,
+            target_band=target_band,
+            q_summary=q_summary,
+            combined_text=combined_text
+        )
         if parsed:
             return parsed
-    except (GemmaClientError, Exception) as e:
+    except Exception as e:
         logger.error(f"AI diagnostic failed: {e}")
 
     # Fallback diagnostic

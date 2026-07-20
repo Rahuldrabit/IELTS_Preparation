@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -10,10 +10,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
-import { useGrammarStore } from '@/lib/store/grammarStore'
-import type { LessonContent } from '@/lib/types/grammar'
+import { getTopicById, getModuleForTopic } from '@/lib/data/grammar'
 import { grammarApi } from '@/lib/services/grammar'
 
 type ExampleLevel = 'easy' | 'medium' | 'ielts' | 'academic'
@@ -24,20 +22,16 @@ export default function TopicLessonPage() {
   const router = useRouter()
   const topicId = Number(params.topicId)
 
-  const { lessonContent, isLoading, error, fetchLessonContent, setPhase } = useGrammarStore()
+  // Get content from STATIC frontend data — no API call needed
+  const topic = getTopicById(topicId)
+  const parentModule = getModuleForTopic(topicId)
 
-  const [activeSection, setActiveSection] = useState<string>('rules')
+  const [activeSection, setActiveSection] = useState<string>('overview')
   const [selectedExampleLevel, setSelectedExampleLevel] = useState<ExampleLevel>('medium')
   const [explanationLevel, setExplanationLevel] = useState<ExplanationLevel>('intermediate')
   const [explanationLanguage, setExplanationLanguage] = useState<'english' | 'bangla'>('english')
   const [aiExplanation, setAiExplanation] = useState<string | null>(null)
   const [isLoadingExplanation, setIsLoadingExplanation] = useState(false)
-
-  useEffect(() => {
-    if (topicId && (!lessonContent || lessonContent.topic_id !== topicId)) {
-      fetchLessonContent(topicId)
-    }
-  }, [topicId, lessonContent, fetchLessonContent])
 
   const handleGetAIExplanation = useCallback(async () => {
     setIsLoadingExplanation(true)
@@ -54,23 +48,12 @@ export default function TopicLessonPage() {
     }
   }, [topicId, explanationLevel, explanationLanguage])
 
-  if (isLoading && !lessonContent) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <BookOpen className="h-8 w-8 text-primary animate-pulse mx-auto mb-3" />
-          <p className="text-muted-foreground">Loading lesson...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !lessonContent) {
+  if (!topic || !parentModule) {
     return (
       <div className="p-6 rounded-xl bg-destructive/10 border border-destructive/20">
         <AlertCircle className="h-5 w-5 text-destructive mb-2" />
-        <p className="font-medium text-destructive">Failed to load lesson</p>
-        <p className="text-sm text-muted-foreground">{error || 'Topic not found'}</p>
+        <p className="font-medium text-destructive">Topic not found</p>
+        <p className="text-sm text-muted-foreground">Topic ID {topicId} does not exist in the curriculum.</p>
         <Button variant="outline" className="mt-4" onClick={() => router.push('/practice/grammar')}>
           <ArrowLeft className="h-4 w-4 mr-2" />Back to Grammar
         </Button>
@@ -79,6 +62,7 @@ export default function TopicLessonPage() {
   }
 
   const sections = [
+    { id: 'overview', label: 'Overview', icon: GraduationCap },
     { id: 'rules', label: 'Grammar Rules', icon: BookOpen },
     { id: 'ai-explanation', label: 'AI Explanation', icon: Sparkles },
     { id: 'examples', label: 'Examples', icon: Lightbulb },
@@ -95,12 +79,12 @@ export default function TopicLessonPage() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline">{lessonContent.module_name}</Badge>
+            <Badge variant="outline">{parentModule.module_name}</Badge>
             <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Topic {lessonContent.topic_id}</span>
+            <span className="text-sm text-muted-foreground">Topic {topic.topic_id}</span>
           </div>
-          <h1 className="text-2xl font-bold">{lessonContent.topic_name}</h1>
-          <p className="text-muted-foreground">{lessonContent.description}</p>
+          <h1 className="text-2xl font-bold">{topic.topic_name}</h1>
+          <p className="text-muted-foreground">{topic.description}</p>
         </div>
       </div>
 
@@ -125,11 +109,56 @@ export default function TopicLessonPage() {
 
       {/* Section Content */}
       <AnimatePresence mode="wait">
+        {/* Overview */}
+        {activeSection === 'overview' && (
+          <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+            <Card>
+              <CardContent className="p-6 space-y-6">
+                {/* Topic Summary */}
+                <div className="text-center space-y-3">
+                  <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                    <GraduationCap className="h-8 w-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-semibold">{topic.topic_name}</h2>
+                  <p className="text-muted-foreground max-w-md mx-auto">{topic.description}</p>
+                  <Badge variant="outline">{parentModule.module_name}</Badge>
+                </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                  <div className="p-4 rounded-xl bg-muted/50 text-center">
+                    <BookOpen className="h-6 w-6 text-primary mx-auto mb-2" />
+                    <p className="text-sm font-medium">{topic.rules.length} Rules</p>
+                    <p className="text-xs text-muted-foreground">Grammar patterns to learn</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-muted/50 text-center">
+                    <Lightbulb className="h-6 w-6 text-amber-500 mx-auto mb-2" />
+                    <p className="text-sm font-medium">{Object.values(topic.examples).flat().length} Examples</p>
+                    <p className="text-xs text-muted-foreground">From easy to academic</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-muted/50 text-center">
+                    <AlertCircle className="h-6 w-6 text-red-500 mx-auto mb-2" />
+                    <p className="text-sm font-medium">{topic.common_mistakes.length} Common Mistakes</p>
+                    <p className="text-xs text-muted-foreground">Avoid these errors</p>
+                  </div>
+                </div>
+
+                {/* Start Learning CTA */}
+                <div className="flex justify-center pt-4">
+                  <Button size="lg" onClick={() => setActiveSection('rules')}>
+                    Start Learning
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Grammar Rules */}
         {activeSection === 'rules' && (
           <motion.div key="rules" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <div className="space-y-4">
-              {lessonContent.rules.map((rule, idx) => (
+              {topic.rules.map((rule, idx) => (
                 <Card key={rule.rule_id || idx}>
                   <CardContent className="p-6">
                     <div className="flex items-start gap-3">
@@ -257,7 +286,7 @@ export default function TopicLessonPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {(lessonContent.examples[selectedExampleLevel] || []).map((example, idx) => (
+                  {(topic.examples[selectedExampleLevel] || []).map((example, idx) => (
                     <div key={idx} className="p-4 rounded-xl bg-muted/30 border">
                       <div className="flex items-start gap-3">
                         <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -267,7 +296,7 @@ export default function TopicLessonPage() {
                       </div>
                     </div>
                   ))}
-                  {(!lessonContent.examples[selectedExampleLevel] || lessonContent.examples[selectedExampleLevel].length === 0) && (
+                  {(!topic.examples[selectedExampleLevel] || topic.examples[selectedExampleLevel].length === 0) && (
                     <p className="text-sm text-muted-foreground text-center py-4">No examples available for this level.</p>
                   )}
                 </div>
@@ -280,7 +309,7 @@ export default function TopicLessonPage() {
         {activeSection === 'common-mistakes' && (
           <motion.div key="mistakes" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             <div className="space-y-4">
-              {lessonContent.common_mistakes.map((mistake, idx) => (
+              {topic.common_mistakes.map((mistake, idx) => (
                 <Card key={idx} className="border-warning/20">
                   <CardContent className="p-6 space-y-3">
                     <div className="flex items-center gap-2 mb-2">
@@ -336,7 +365,7 @@ export default function TopicLessonPage() {
                   </div>
                   <h3 className="font-semibold">Writing Practice</h3>
                   <p className="text-sm text-muted-foreground">
-                    Write sentences using {lessonContent.topic_name} and get AI feedback
+                    Write sentences using {topic.topic_name} and get AI feedback
                   </p>
                   <Badge variant="outline">Grammar Focus</Badge>
                 </CardContent>
@@ -349,7 +378,7 @@ export default function TopicLessonPage() {
                   </div>
                   <h3 className="font-semibold">Speaking Practice</h3>
                   <p className="text-sm text-muted-foreground">
-                    Speak using {lessonContent.topic_name} and get grammar analysis
+                    Speak using {topic.topic_name} and get grammar analysis
                   </p>
                   <Badge variant="outline">Speech-to-Text</Badge>
                 </CardContent>

@@ -19,7 +19,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { journeyApi } from '@/lib/services/journey'
 
 interface DailyTask {
   id: string
@@ -73,10 +75,8 @@ export function StudyPlanCard({ className }: StudyPlanCardProps) {
   const loadPlan = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/journey/study-plan')
-      if (!response.ok) throw new Error('Failed to load plan')
-      const data = await response.json()
-      setPlan(data)
+      const data = await journeyApi.getStudyPlan()
+      setPlan(data as unknown as StudyPlan)
       
       // Select today by default
       const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
@@ -90,11 +90,7 @@ export function StudyPlanCard({ className }: StudyPlanCardProps) {
   
   const toggleTask = async (taskId: string, completed: boolean) => {
     try {
-      await fetch('/api/journey/study-plan/task/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: taskId, completed }),
-      })
+      await journeyApi.completeTask(taskId, completed)
       
       // Update local state
       setPlan(prev => {

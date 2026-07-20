@@ -24,6 +24,7 @@ import {
   GazeDebugOverlay,
   CalibrationOverlay,
   CameraPermission,
+  EyeTrackingSetupModal,
   type ReadingTracker,
 } from '@/modules/telemetry'
 
@@ -105,6 +106,9 @@ export default function ReadingPage() {
   const [eyeTrackingEnabled, setEyeTrackingEnabled] = useState(false)
   const [showCalibration, setShowCalibration] = useState(false)
   const [cameraStatus, setCameraStatus] = useState<'idle' | 'requesting' | 'active' | 'denied' | 'error'>('idle')
+  const [setupModalOpen, setSetupModalOpen] = useState(false)
+  const [forceRecalibrate, setForceRecalibrate] = useState(false)
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null)
 
   const cte = useTelemetry({
     skill: 'reading',
@@ -159,47 +163,32 @@ export default function ReadingPage() {
     }
   }, [showCalibration, cte.status, cte.tracker])
 
-  const handleStartEyeTracking = useCallback(async () => {
-    // Step 1: Request camera permission IMMEDIATELY (triggers browser prompt)
-    setCameraStatus('requesting')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-        audio: false,
-      })
-      // Permission granted — keep stream active and pass to CTE
-      setCameraStatus('active')
-      setEyeTrackingEnabled(true)
+  const handleOpenSetup = useCallback((force = false) => {
+    setForceRecalibrate(force)
+    setSetupModalOpen(true)
+  }, [])
 
-      // Step 2: Check calibration and start CTE with existing stream
-      try {
-        await cte.start(stream)
-        const stored = calibration.loadStored()
-        if (!stored) {
-          setShowCalibration(true)
-          calibration.startCalibration()
-        }
-      } catch (startErr) {
-        console.error('[CTE] Start failed:', startErr)
-        setCameraStatus('error')
-      }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err))
-      const isDenied = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
-      setCameraStatus(isDenied ? 'denied' : 'error')
-      console.error('[CTE] Camera permission error:', error.message)
+  const handleSetupComplete = useCallback((mediaStream: MediaStream) => {
+    setSetupModalOpen(false)
+    setActiveStream(mediaStream)
+    setCameraStatus('active')
+    setEyeTrackingEnabled(true)
+
+    const stored = calibration.loadStored()
+    if (!stored || forceRecalibrate) {
+      setShowCalibration(true)
+      calibration.startCalibration()
     }
-  }, [calibration, cte])
+  }, [calibration, forceRecalibrate])
 
-  const handleSkipEyeTracking = useCallback(() => {
-    setEyeTrackingEnabled(false)
-    setCameraStatus('idle')
+  const handleSetupCancel = useCallback(() => {
+    setSetupModalOpen(false)
   }, [])
 
   /** Immediately stop all eye tracking — works at any phase */
   const handleStopEyeTracking = useCallback(() => {
     // Stop CTE tracker if running
-    if (cte.status === 'active') {
+    if (cte.status === 'active' || cte.status === 'starting') {
       cte.stop()
     }
     // Dismiss calibration overlay
@@ -207,27 +196,19 @@ export default function ReadingPage() {
       setShowCalibration(false)
       calibration.cancel()
     }
+    if (activeStream) {
+      activeStream.getTracks().forEach((t) => t.stop())
+      setActiveStream(null)
+    }
     // Reset all state
     setEyeTrackingEnabled(false)
     setCameraStatus('idle')
     setFaceMeshReady(false)
     setCurrentIrisPosition(null)
     setDownloadProgress(null)
-  }, [cte, showCalibration, calibration])
+  }, [cte, showCalibration, calibration, activeStream])
 
-  // Pre-warm MediaPipe on page load (silent background download)
-  useEffect(() => {
-    const prewarmFaceMesh = () => {
-      // We'll rely on browser caching - when the real FaceMesh starts,
-      // it will see cached files and load much faster
-      // The progress indicator will show actual download progress
-      console.debug('[CTE] Pre-warm scheduled - model will cache on first use')
-    }
-    
-    // Schedule pre-warm
-    const timeout = setTimeout(prewarmFaceMesh, 2000)
-    return () => clearTimeout(timeout)
-  }, [])
+  // Pre-warm handled globally by MediaPipePreloader in layout.tsx
 
   const handleCalibrationCancel = useCallback(() => {
     setShowCalibration(false)
@@ -509,7 +490,7 @@ export default function ReadingPage() {
                     variant="outline"
                     size="sm"
                     className="gap-1.5 text-xs"
-                    onClick={handleStartEyeTracking}
+                    onClick={() => handleOpenSetup(false)}
                   >
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -542,49 +523,42 @@ export default function ReadingPage() {
                       {cameraStatus === 'requesting' ? 'Allow Camera...' : 'Starting Gaze...'}
                       <span className="ml-1 text-[10px] text-muted-foreground">✕</span>
                     </Button>
-                    {/* Download progress indicator */}
-                    {downloadProgress && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 transition-all duration-300"
-                            style={{ width: `${downloadProgress.progress}%` }}
-                          />
-                        </div>
-                        <span className="whitespace-nowrap">
-                          {downloadProgress.stage === 'library' && 'Loading library...'}
-                          {downloadProgress.stage === 'wasm' && 'Downloading WASM...'}
-                          {downloadProgress.stage === 'model' && 'Downloading model...'}
-                          {downloadProgress.stage === 'initializing' && 'Initializing...'}
-                          {downloadProgress.progress}%
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
                 {cte.status === 'active' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="group gap-1.5 text-xs border-green-500/50 text-green-600 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-600 transition-colors"
-                    onClick={handleStopEyeTracking}
-                    title="Click to turn off eye tracking"
-                  >
-                    <span className="relative flex h-2 w-2 group-hover:hidden">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                    </span>
-                    <span className="hidden group-hover:inline-block w-2 h-2 text-[10px] leading-none">✕</span>
-                    <span className="group-hover:hidden">Gaze Active</span>
-                    <span className="hidden group-hover:inline">Stop Tracking</span>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs border-blue-500/50 text-blue-600 hover:bg-blue-500/10 transition-colors"
+                      onClick={() => handleOpenSetup(true)}
+                      title="Click to recalibrate eye tracking"
+                    >
+                      Recalibrate
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="group gap-1.5 text-xs border-green-500/50 text-green-600 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-600 transition-colors"
+                      onClick={handleStopEyeTracking}
+                      title="Click to turn off eye tracking"
+                    >
+                      <span className="relative flex h-2 w-2 group-hover:hidden">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                      </span>
+                      <span className="hidden group-hover:inline-block w-2 h-2 text-[10px] leading-none">✕</span>
+                      <span className="group-hover:hidden">Gaze Active</span>
+                      <span className="hidden group-hover:inline">Stop Tracking</span>
+                    </Button>
+                  </div>
                 )}
                 {cameraStatus === 'denied' && (
                   <Button
                     variant="outline"
                     size="sm"
                     className="gap-1.5 text-xs border-yellow-500/50 text-yellow-600"
-                    onClick={handleStartEyeTracking}
+                    onClick={() => handleOpenSetup(false)}
                     title="Camera access was denied. Click to retry."
                   >
                     Camera Denied
@@ -595,7 +569,7 @@ export default function ReadingPage() {
                     variant="outline"
                     size="sm"
                     className="gap-1.5 text-xs border-red-500/50 text-red-600"
-                    onClick={handleStartEyeTracking}
+                    onClick={() => handleOpenSetup(false)}
                   >
                     Retry Eye Tracking
                   </Button>
@@ -721,6 +695,13 @@ export default function ReadingPage() {
 
       {/* ── CTE Overlays ── */}
 
+      <EyeTrackingSetupModal
+        isOpen={setupModalOpen}
+        onClose={handleSetupCancel}
+        onComplete={handleSetupComplete}
+        cte={cte}
+      />
+
       {/* Calibration overlay (full-screen) */}
       {showCalibration && (
         <CalibrationOverlay
@@ -732,6 +713,8 @@ export default function ReadingPage() {
           onCancel={handleCalibrationCancel}
           irisPosition={currentIrisPosition}
           cameraReady={faceMeshReady}
+          stream={activeStream}
+          cteTracker={cte.tracker}
         />
       )}
 

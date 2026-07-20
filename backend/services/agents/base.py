@@ -17,7 +17,8 @@ from typing import Optional, Type, TypeVar
 
 from pydantic import BaseModel
 
-from services.ai_agent.gemma_client import GemmaClient, GemmaClientError, get_gemma_client
+from services.llm import LLMClientError, get_llm_client
+from services.llm.provider import LLMClient
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -32,7 +33,7 @@ class BaseAgent:
         name: str        — human-readable agent name, used in logs + registry
         description: str — one-sentence description of what this agent does
 
-    All LLM calls go through the shared GemmaClient singleton.
+    All LLM calls go through the shared LLMClient singleton.
     Heavy sync SDK calls are offloaded to a thread pool via run_in_executor
     so they never block the asyncio event loop.
     """
@@ -45,9 +46,9 @@ class BaseAgent:
     # ─────────────────────────────────────────────
 
     @property
-    def client(self) -> GemmaClient:
-        """Lazy access to the shared GemmaClient singleton."""
-        return get_gemma_client()
+    def client(self) -> LLMClient:
+        """Lazy access to the shared LLMClient singleton."""
+        return get_llm_client()
 
     async def run_structured(
         self,
@@ -74,12 +75,12 @@ class BaseAgent:
             )
             logger.debug("[%s] run_structured OK (schema=%s)", self.name, schema.__name__)
             return result
-        except GemmaClientError as e:
+        except LLMClientError as e:
             logger.error("[%s] run_structured FAILED: %s", self.name, e)
             raise
         except Exception as e:
             logger.error("[%s] run_structured unexpected error: %s", self.name, e)
-            raise GemmaClientError(f"[{self.name}] {e}") from e
+            raise LLMClientError(f"[{self.name}] {e}") from e
 
     async def run_text(
         self,
@@ -103,12 +104,12 @@ class BaseAgent:
             )
             logger.debug("[%s] run_text OK", self.name)
             return result
-        except GemmaClientError as e:
+        except LLMClientError as e:
             logger.error("[%s] run_text FAILED: %s", self.name, e)
             raise
         except Exception as e:
             logger.error("[%s] run_text unexpected error: %s", self.name, e)
-            raise GemmaClientError(f"[{self.name}] {e}") from e
+            raise LLMClientError(f"[{self.name}] {e}") from e
 
     async def run_transcribe(
         self,
@@ -130,9 +131,9 @@ class BaseAgent:
             )
             logger.debug("[%s] run_transcribe OK", self.name)
             return result
-        except GemmaClientError as e:
+        except LLMClientError as e:
             logger.error("[%s] run_transcribe FAILED: %s", self.name, e)
             raise
         except Exception as e:
             logger.error("[%s] run_transcribe unexpected error: %s", self.name, e)
-            raise GemmaClientError(f"[{self.name}] {e}") from e
+            raise LLMClientError(f"[{self.name}] {e}") from e

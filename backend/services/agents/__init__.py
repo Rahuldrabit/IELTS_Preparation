@@ -44,3 +44,13 @@ from services.agents.council import (        # noqa: F401
 from services.agents.socratic import SocraticHintAgent          # noqa: F401
 from services.agents.syllabus import SyllabusCuratorAgent       # noqa: F401
 from services.agents.adversarial import AdversarialDistractorAgent  # noqa: F401
+
+# Import new domain agents to trigger @registry.register
+from services.agents.vocabulary import VocabularyAgent          # noqa: F401
+from services.agents.profile import ProfileAgent              # noqa: F401
+from services.agents.reading import ReadingAgent              # noqa: F401
+from services.agents.listening import ListeningAgent          # noqa: F401
+from services.agents.mocktest import MocktestGeneratorAgent, MocktestEvaluatorAgent # noqa: F401
+from services.agents.writing import WritingAgent              # noqa: F401
+from services.agents.mentor import MentorAgent                # noqa: F401
+from services.agents.speaking import SpeakingAgent            # noqa: F401

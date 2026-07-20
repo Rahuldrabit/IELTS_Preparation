@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
-from services.ai_agent.gemma_client import GemmaClientError
+from services.llm import LLMClientError
 from services.agents.council import run_council, CouncilReport
 from services.agents.socratic import SocraticHintAgent, SocraticHintRequest, SocraticHintResponse
 from services.agents.syllabus import SyllabusCuratorAgent, SkillTelemetrySummary, UmaIntervention
@@ -73,7 +73,7 @@ async def council_evaluate(request: CouncilEvalRequest):
             task_prompt=request.task_prompt,
             target_band=request.target_band,
         )
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Council evaluation failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
@@ -96,7 +96,7 @@ async def socratic_hint(request: SocraticHintRequest):
     agent = SocraticHintAgent()
     try:
         return await agent.get_hint(request)
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Socratic hint failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
@@ -120,7 +120,7 @@ async def syllabus_analyse(telemetry: SkillTelemetrySummary):
     agent = SyllabusCuratorAgent()
     try:
         return await agent.analyse(telemetry)
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Syllabus analysis failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
@@ -144,7 +144,7 @@ async def adversarial_generate(request: AdversarialGenerationRequest):
     agent = AdversarialDistractorAgent()
     try:
         return await agent.generate(request)
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Adversarial generation failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
@@ -182,7 +182,7 @@ async def error_dna_analyse(request: ErrorDNAProfileRequest):
     agent = ErrorDNAAgent()
     try:
         return await agent.analyse(request.error_profile)
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Error DNA analysis failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
@@ -229,7 +229,7 @@ async def error_dna_analyse_user(request: ErrorDNARequest):
                     "period_end": profile.period_end.isoformat(),
                 }
             }
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Error DNA analysis failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:
@@ -256,7 +256,7 @@ async def error_dna_micro_exercises(request: MicroExerciseRequest):
     """
     try:
         return await generate_micro_exercises(request)
-    except GemmaClientError as e:
+    except LLMClientError as e:
         logger.error("Micro-exercise generation failed: %s", e)
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
     except Exception as e:

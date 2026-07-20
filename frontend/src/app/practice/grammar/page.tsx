@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { 
   FileText, ChevronRight, AlertCircle, CheckCircle2, Lightbulb, 
@@ -15,6 +16,7 @@ import { fadeInUp, staggerItem, staggerContainer } from '@/lib/animations'
 import { useGrammarStore } from '@/lib/store/grammarStore'
 
 export default function GrammarPage() {
+  const router = useRouter()
   const {
     phase,
     dashboard,
@@ -23,7 +25,6 @@ export default function GrammarPage() {
     fetchDashboard,
     setPhase,
     setCurrentTopic,
-    fetchLessonContent
   } = useGrammarStore()
   
   const [selectedSkillId, setSelectedSkillId] = useState<number | null>(null)
@@ -32,9 +33,14 @@ export default function GrammarPage() {
     fetchDashboard()
   }, [fetchDashboard])
   
+  // Combine weak and strong topics into a single "all topics" list for selection
+  const allTopics = [
+    ...(dashboard?.weak_topics || []),
+    ...(dashboard?.strong_topics || [])
+  ]
+  
   const selectedSkill = selectedSkillId 
-    ? dashboard?.weak_topics?.find(s => s.id === selectedSkillId) || 
-      dashboard?.strong_topics?.find(s => s.id === selectedSkillId)
+    ? allTopics.find(s => s.id === selectedSkillId)
     : null
   
   const handleSelectSkill = (skillId: number) => {
@@ -42,13 +48,12 @@ export default function GrammarPage() {
     setCurrentTopic(skillId)
   }
   
-  const handlePracticeSkill = async (skillId: number) => {
-    try {
-      await fetchLessonContent(skillId)
-      setPhase('lesson')
-    } catch (error) {
-      console.error('Failed to load lesson:', error)
-    }
+  const handleNavigateToJourney = () => {
+    router.push('/practice/grammar/journey')
+  }
+  
+  const handleNavigateToTopic = (topicId: number) => {
+    router.push(`/practice/grammar/topics/${topicId}`)
   }
 
   if (isLoading && !dashboard) {
@@ -66,14 +71,44 @@ export default function GrammarPage() {
   
   if (error) {
     return (
-      <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <div>
-            <p className="font-medium text-destructive">Error loading dashboard</p>
-            <p className="text-sm text-muted-foreground">{error}</p>
+      <div className="space-y-6">
+        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <div>
+              <p className="font-medium text-destructive">Could not load personalized dashboard</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
           </div>
         </div>
+        
+        {/* Fallback: show quick links to journey and topics that work without DB */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Grammar Learning</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              While the personalized dashboard is unavailable, you can still explore grammar topics:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Button onClick={handleNavigateToJourney} className="h-auto py-4">
+                <div className="text-center">
+                  <Sparkles className="h-6 w-6 mx-auto mb-2" />
+                  <p className="font-medium">Learning Journey</p>
+                  <p className="text-xs opacity-80">Explore all 10 modules and 23 topics</p>
+                </div>
+              </Button>
+              <Button variant="outline" onClick={() => handleNavigateToTopic(1)} className="h-auto py-4">
+                <div className="text-center">
+                  <BookOpen className="h-6 w-6 mx-auto mb-2" />
+                  <p className="font-medium">Start Learning</p>
+                  <p className="text-xs text-muted-foreground">Begin with Parts of Speech</p>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -93,7 +128,7 @@ export default function GrammarPage() {
             </p>
           </div>
           <Button 
-            onClick={() => setPhase('journey')}
+            onClick={handleNavigateToJourney}
             variant="outline"
           >
             <Sparkles className="h-4 w-4 mr-2" />
@@ -207,7 +242,7 @@ export default function GrammarPage() {
                 </div>
                 <Button 
                   size="sm"
-                  onClick={() => handlePracticeSkill(dashboard.continue_learning!.skill_id)}
+                  onClick={() => handleNavigateToTopic(dashboard.continue_learning!.skill_id)}
                 >
                   Continue
                   <ChevronRight className="h-4 w-4 ml-2" />
@@ -339,7 +374,7 @@ export default function GrammarPage() {
                     <span className="text-sm font-medium">{selectedSkill.mastery}% mastery</span>
                   </div>
                   <Button 
-                    onClick={() => handlePracticeSkill(selectedSkill.id)}
+                    onClick={() => handleNavigateToTopic(selectedSkill.id)}
                     size="lg"
                   >
                     Practice {selectedSkill.skill_name}
@@ -380,7 +415,7 @@ export default function GrammarPage() {
                   <Button 
                     variant="outline" 
                     className="h-auto py-4"
-                    onClick={() => handlePracticeSkill(selectedSkill.id)}
+                    onClick={() => handleNavigateToTopic(selectedSkill.id)}
                   >
                     <div className="text-center">
                       <BookOpen className="h-6 w-6 mx-auto mb-2" />
@@ -391,10 +426,7 @@ export default function GrammarPage() {
                   <Button 
                     variant="outline" 
                     className="h-auto py-4"
-                    onClick={() => {
-                      // TODO: Start exercise session
-                      console.log('Start exercises for', selectedSkill.id)
-                    }}
+                    onClick={() => router.push(`/practice/grammar/topics/${selectedSkill.id}/exercises`)}
                   >
                     <div className="text-center">
                       <Sparkles className="h-6 w-6 mx-auto mb-2" />

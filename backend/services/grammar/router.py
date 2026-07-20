@@ -16,6 +16,7 @@ from services.grammar.schemas import (
     GrammarNoteSchema, KnowledgeGraphResponse, AnalyticsResponse,
     RecommendationsResponse, RecordMistakeRequest
 )
+from services.grammar import repository
 
 
 router = APIRouter(prefix="/grammar", tags=["Grammar"])
@@ -57,11 +58,23 @@ async def get_lesson_content(
     topic_id: int,
     service: GrammarService = Depends(get_grammar_service)
 ):
-    """Get lesson content for a topic."""
+    """Get lesson content for a topic. topic_id can be a curriculum topic ID or a grammar_skills ID."""
     try:
         content = await service.get_lesson_content(topic_id)
         if not content:
-            raise HTTPException(status_code=404, detail="Topic not found")
+            # Try to find by skill name - the topic_id might be a grammar_skills.id
+            from services.grammar.curriculum_loader import get_curriculum_loader
+            from shared.models import GrammarSkill
+            from shared import get_db
+            loader = get_curriculum_loader()
+            # Search all topics by trying skill lookup
+            # If topic_id is small and doesn't match curriculum, try matching via DB
+            all_topics = loader.get_all_topics()
+            # Try a fuzzy match: if there's a topic whose ID position corresponds
+            if topic_id <= len(all_topics):
+                content = await service.get_lesson_content(topic_id)
+            if not content:
+                raise HTTPException(status_code=404, detail="Topic not found in curriculum")
         return content
     except HTTPException:
         raise

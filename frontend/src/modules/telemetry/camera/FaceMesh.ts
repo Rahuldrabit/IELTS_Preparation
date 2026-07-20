@@ -207,8 +207,9 @@ export class FaceMeshProcessor extends Emitter<FaceMeshEventMap> implements ILif
       const landmarks = this.extractEyeLandmarks(raw)
       const blinkDetected = this.detectBlink(raw)
       const headPose = this.extractHeadPose(results.facialTransformationMatrixes)
+      const fullMesh = raw.map((p: any) => ({ x: p.x, y: p.y, z: p.z }))
 
-      const result: FaceMeshResult = { landmarks, blinkDetected, headPose, timestamp }
+      const result: FaceMeshResult = { landmarks, blinkDetected, headPose, timestamp, fullMesh }
       this.emit('result', result)
       return result
     } catch (err) {

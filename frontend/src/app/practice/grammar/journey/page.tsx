@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { 
   ArrowLeft, BookOpen, Lock, CheckCircle2, AlertCircle, 
@@ -11,58 +10,17 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
-import { useGrammarStore } from '@/lib/store/grammarStore'
 import { useRouter } from 'next/navigation'
+import { getJourneyMap } from '@/lib/data/grammar'
 
 export default function GrammarJourneyPage() {
   const router = useRouter()
-  const {
-    journeyMap,
-    isLoading,
-    error,
-    fetchJourneyMap,
-    setPhase,
-    fetchLessonContent
-  } = useGrammarStore()
   
-  useEffect(() => {
-    fetchJourneyMap()
-  }, [fetchJourneyMap])
+  // Journey map comes from STATIC frontend data — no API needed
+  const journeyMap = getJourneyMap()
   
-  if (isLoading && !journeyMap) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <BookOpen className="h-6 w-6 text-primary animate-pulse" />
-          </div>
-          <p className="text-muted-foreground">Loading your grammar journey...</p>
-        </div>
-      </div>
-    )
-  }
-  
-  if (error) {
-    return (
-      <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <div>
-            <p className="font-medium text-destructive">Error loading journey map</p>
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-  
-  const handleStartTopic = async (topicId: number) => {
-    try {
-      await fetchLessonContent(topicId)
-      setPhase('lesson')
-    } catch (error) {
-      console.error('Failed to load lesson:', error)
-    }
+  const handleStartTopic = (topicId: number) => {
+    router.push(`/practice/grammar/topics/${topicId}`)
   }
   
   const getModuleColor = (moduleIndex: number) => {
@@ -94,19 +52,19 @@ export default function GrammarJourneyPage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Grammar Learning Journey</h1>
             <p className="text-muted-foreground">
-              Your personalized path to grammar mastery across {journeyMap?.total_modules || 0} modules
+              Your personalized path to grammar mastery across {journeyMap.total_modules} modules
             </p>
           </div>
         </div>
         <Badge variant="outline" className="text-sm">
           <Sparkles className="h-3 w-3 mr-1" />
-          {journeyMap?.total_topics || 0} Topics
+          {journeyMap.total_topics} Topics
         </Badge>
       </div>
       
       {/* Journey Visualization */}
       <div className="space-y-8">
-        {journeyMap?.modules.map((module, moduleIndex) => {
+        {journeyMap.modules.map((module, moduleIndex) => {
           const moduleColor = getModuleColor(moduleIndex)
           const colorClass = moduleColor.split(' ')[0]
           const borderClass = moduleColor.split(' ')[1]

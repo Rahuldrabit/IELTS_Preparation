@@ -1,4 +1,4 @@
 """Journey Service - Study plans, milestones, exam countdown."""
-from .main import router
+from .router import router
 
 __all__ = ["router"]

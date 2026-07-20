@@ -9,7 +9,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+from services.agents.mocktest import MocktestGeneratorAgent
 from services.mocktest.baseline_data import (
     LISTENING_DIFFICULTY,
     READING_DIFFICULTY,
@@ -270,22 +270,20 @@ Return ONLY valid JSON:
 
 async def generate_listening_content() -> dict:
     """Generate all 4 listening sections with progressive difficulty."""
-    client = get_gemma_client()
+    agent = MocktestGeneratorAgent()
     sections = []
 
     for config in LISTENING_DIFFICULTY:
-        prompt = _build_listening_prompt(config)
+        prompt = agent._build_listening_prompt(config)
         try:
-            response = await asyncio.to_thread(
-                client.generate_text, prompt, None, 0.4
-            )
+            response = await agent.run_text(prompt=prompt, temperature=0.4)
             parsed = _parse_json_response(response)
             if parsed:
                 sections.append(parsed)
             else:
                 logger.warning(f"Failed to parse listening section {config['section_number']}")
                 sections.append(_fallback_listening_section(config))
-        except GemmaClientError as e:
+        except Exception as e:
             logger.error(f"AI error generating listening section {config['section_number']}: {e}")
             sections.append(_fallback_listening_section(config))
 
@@ -298,22 +296,20 @@ async def generate_listening_content() -> dict:
 
 async def generate_reading_content() -> dict:
     """Generate 3 reading passages with progressive difficulty."""
-    client = get_gemma_client()
+    agent = MocktestGeneratorAgent()
     passages = []
 
     for config in READING_DIFFICULTY:
-        prompt = _build_reading_prompt(config)
+        prompt = agent._build_reading_prompt(config)
         try:
-            response = await asyncio.to_thread(
-                client.generate_text, prompt, None, 0.3
-            )
+            response = await agent.run_text(prompt=prompt, temperature=0.3)
             parsed = _parse_json_response(response)
             if parsed:
                 passages.append(parsed)
             else:
                 logger.warning(f"Failed to parse reading passage {config['passage_number']}")
                 passages.append(_fallback_reading_passage(config))
-        except GemmaClientError as e:
+        except Exception as e:
             logger.error(f"AI error generating reading passage {config['passage_number']}: {e}")
             passages.append(_fallback_reading_passage(config))
 
@@ -326,21 +322,19 @@ async def generate_reading_content() -> dict:
 
 async def generate_writing_content() -> dict:
     """Generate Task 1 + Task 2 writing prompts."""
-    client = get_gemma_client()
+    agent = MocktestGeneratorAgent()
     tasks = []
 
     for config in WRITING_DIFFICULTY:
-        prompt = _build_writing_prompt(config)
+        prompt = agent._build_writing_prompt(config)
         try:
-            response = await asyncio.to_thread(
-                client.generate_text, prompt, None, 0.5
-            )
+            response = await agent.run_text(prompt=prompt, temperature=0.5)
             parsed = _parse_json_response(response)
             if parsed:
                 tasks.append(parsed)
             else:
                 tasks.append(_fallback_writing_task(config))
-        except GemmaClientError as e:
+        except Exception as e:
             logger.error(f"AI error generating writing task {config['task_number']}: {e}")
             tasks.append(_fallback_writing_task(config))
 
@@ -352,21 +346,19 @@ async def generate_writing_content() -> dict:
 
 async def generate_speaking_content() -> dict:
     """Generate speaking Part 1, 2, and 3 content."""
-    client = get_gemma_client()
+    agent = MocktestGeneratorAgent()
     parts = []
 
     for config in SPEAKING_DIFFICULTY:
-        prompt = _build_speaking_prompt(config)
+        prompt = agent._build_speaking_prompt(config)
         try:
-            response = await asyncio.to_thread(
-                client.generate_text, prompt, None, 0.5
-            )
+            response = await agent.run_text(prompt=prompt, temperature=0.5)
             parsed = _parse_json_response(response)
             if parsed:
                 parts.append(parsed)
             else:
                 parts.append(_fallback_speaking_part(config))
-        except GemmaClientError as e:
+        except Exception as e:
             logger.error(f"AI error generating speaking part {config['part_number']}: {e}")
             parts.append(_fallback_speaking_part(config))
 

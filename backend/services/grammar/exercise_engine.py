@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
-from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+from services.llm import get_llm_client, LLMClientError
 
 
 EXERCISE_TYPES = [
@@ -33,7 +33,7 @@ class ExerciseGenerator:
     """Generates grammar exercises using AI."""
     
     def __init__(self):
-        self.ai_client = get_gemma_client()
+        self.ai_client = get_llm_client()
     
     async def generate_exercises(
         self,
@@ -110,7 +110,7 @@ Return a JSON array of {count} exercises. Return ONLY valid JSON array, no other
             # Fallback if parsing fails
             return self._generate_fallback_exercises(topic_name, types, count, difficulty)
             
-        except (GemmaClientError, json.JSONDecodeError, Exception):
+        except (LLMClientError, json.JSONDecodeError, Exception):
             return self._generate_fallback_exercises(topic_name, types, count, difficulty)
     
     def _generate_fallback_exercises(

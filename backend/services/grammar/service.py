@@ -11,7 +11,7 @@ from shared.models import (
     GrammarAttempt, GrammarNote, GrammarLearningHistory, DailyTask
 )
 from services.grammar.curriculum_loader import get_curriculum_loader
-from services.ai_agent.gemma_client import get_gemma_client, GemmaClientError
+from services.llm import get_llm_client, LLMClientError
 from services.grammar.schemas import (
     DashboardResponse, JourneyMapResponse, LessonContentResponse,
     GrammarErrorAnalysisResponse, ExerciseGenerationRequest,
@@ -27,7 +27,7 @@ class GrammarService:
     
     def __init__(self):
         self.curriculum_loader = get_curriculum_loader()
-        self.ai_client = get_gemma_client()
+        self.ai_client = get_llm_client()
     
     async def get_dashboard(self, user_id: int, db: AsyncSession) -> DashboardResponse:
         """Get grammar dashboard data."""
@@ -52,8 +52,8 @@ class GrammarService:
         weakest_topic = min(skills, key=lambda s: s.mastery, default=None)
         strongest_topic = max(skills, key=lambda s: s.mastery, default=None)
         
-        # Get weak topics (mastery < 50)
-        weak_topics = [skill for skill in skills if skill.mastery < 50]
+        # Get weak topics (mastery < 70) and strong topics (mastery >= 70)
+        weak_topics = [skill for skill in skills if skill.mastery < 70]
         strong_topics = [skill for skill in skills if skill.mastery >= 70]
         
         # Get today's grammar-related daily tasks
@@ -145,7 +145,7 @@ class GrammarService:
                 temperature=0.7
             )
             return explanation
-        except GemmaClientError:
+        except LLMClientError:
             return f"Explanation unavailable. Please try again later."
     
     async def analyze_grammar_error(
@@ -185,7 +185,7 @@ class GrammarService:
                 temperature=0.3
             )
             return response
-        except GemmaClientError:
+        except LLMClientError:
             # Fallback analysis
             return GrammarErrorAnalysisResponse(
                 category="Unknown",

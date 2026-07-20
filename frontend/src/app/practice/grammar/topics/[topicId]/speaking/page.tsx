@@ -10,13 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { useGrammarStore } from '@/lib/store/grammarStore'
+import { getTopicById } from '@/lib/data/grammar'
+import { grammarApi } from '@/lib/services/grammar'
 
 export default function GrammarSpeakingPage() {
   const params = useParams()
   const router = useRouter()
   const topicId = Number(params.topicId)
-  const { lessonContent, fetchLessonContent } = useGrammarStore()
+  
+  // Static frontend data — no API needed for topic info
+  const topicData = getTopicById(topicId)
+  const topicName = topicData?.topic_name || `Topic ${topicId}`
 
   const [isRecording, setIsRecording] = useState(false)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
@@ -27,12 +31,6 @@ export default function GrammarSpeakingPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => {
-    if (!lessonContent || lessonContent.topic_id !== topicId) {
-      fetchLessonContent(topicId)
-    }
-  }, [topicId, lessonContent, fetchLessonContent])
 
   useEffect(() => {
     return () => {
@@ -86,27 +84,13 @@ export default function GrammarSpeakingPage() {
     setError(null)
 
     try {
-      // Submit audio for grammar-focused analysis
-      const formData = new FormData()
-      formData.append('audio', audioBlob, 'recording.webm')
-      formData.append('target_grammar', lessonContent?.topic_name || '')
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/grammar/topics/${topicId}/speaking-practice`,
-        { method: 'POST', body: formData }
-      )
-
-      if (!response.ok) {
-        throw new Error('Speaking analysis is not yet available')
-      }
-
-      const data = await response.json()
+      const data = await grammarApi.practiceSpeaking(topicId, audioBlob, topicName)
       setFeedback(data)
     } catch (err) {
       // Provide mock feedback for demo
       setFeedback({
         transcript: 'Speaking practice recording submitted successfully.',
-        grammar_structures_found: [lessonContent?.topic_name || 'Grammar structure'],
+        grammar_structures_found: [topicName],
         errors_classified: [],
         feedback: 'Speaking practice with grammar analysis requires the backend speaking endpoint to be active. Your recording was captured successfully.',
         band_estimate: 6.5,
@@ -128,7 +112,6 @@ export default function GrammarSpeakingPage() {
     setDuration(0)
   }
 
-  const topicName = lessonContent?.topic_name || `Topic ${topicId}`
   const formatDuration = (secs: number) => `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, '0')}`
 
   return (

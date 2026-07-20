@@ -45,5 +45,9 @@ export { useTelemetry, useCalibration, useGaze, useGazeDebug } from './hooks'
 export type { UseTelemetryOptions, UseTelemetryReturn, TelemetryStatus, UseCalibrationReturn, UseGazeOptions, UseGazeReturn, UseGazeDebugOptions, UseGazeDebugReturn } from './hooks'
 
 // Components
-export { CalibrationOverlay, GazeDebugOverlay, CameraPermission } from './components'
+export { CalibrationOverlay, GazeDebugOverlay, CameraPermission, EyeTrackingSetupModal } from './components'
 export type { CalibrationOverlayProps, GazeDebugOverlayProps, CameraPermissionProps } from './components'
+
+// Preload
+export { schedulePreload, preloadMediaPipe, isModelCached, invalidateModelCache, getPreloadStatus } from './preload'
+export type { PreloadStatus } from './preload'

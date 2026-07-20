@@ -4,6 +4,7 @@ import "./globals.css";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { MediaPipePreloader } from "@/components/providers/MediaPipePreloader";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}>
         <QueryProvider>
           <ThemeProvider>
+            <MediaPipePreloader />
             <MainLayout>{children}</MainLayout>
           </ThemeProvider>
         </QueryProvider>

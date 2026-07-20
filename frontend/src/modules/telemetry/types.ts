@@ -92,6 +92,7 @@ export interface EyeLandmarks {
 
 export interface FaceMeshResult {
   landmarks: EyeLandmarks | null
+  fullMesh?: Point3D[] | null
   blinkDetected: boolean
   headPose: HeadPose | null
   timestamp: number

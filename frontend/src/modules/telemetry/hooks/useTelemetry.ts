@@ -34,7 +34,7 @@ export interface UseTelemetryOptions {
 export interface UseTelemetryReturn {
   status: TelemetryStatus
   error: string | null
-  start: (existingStream?: MediaStream) => Promise<void>
+  start: (existingStream?: MediaStream, onProgress?: (progress: any) => void) => Promise<void>
   stop: () => void
   config: TelemetryConfig
   /** Access underlying tracker for advanced usage */
@@ -54,7 +54,7 @@ export function useTelemetry(options: UseTelemetryOptions): UseTelemetryReturn {
   const uploaderRef = useRef<TelemetryUploader | null>(null)
   const disposersRef = useRef<(() => void)[]>([])
 
-  const start = useCallback(async (existingStream?: MediaStream) => {
+  const start = useCallback(async (existingStream?: MediaStream, onProgress?: (progress: any) => void) => {
     if (status === 'active' || status === 'starting') return
     setStatus('starting')
     setError(null)
@@ -70,6 +70,11 @@ export function useTelemetry(options: UseTelemetryOptions): UseTelemetryReturn {
         ? new ReadingTracker(sessionId, config, existingStream)
         : new ListeningTracker(sessionId, config, existingStream)
       trackerRef.current = tracker
+
+      if (onProgress && 'faceMesh' in tracker) {
+        const d0 = tracker.faceMesh.on('progress', onProgress)
+        disposersRef.current.push(d0)
+      }
 
       // 3. Analytics (reading only for now)
       if (skill === 'reading') {

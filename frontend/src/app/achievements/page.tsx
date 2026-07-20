@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { analyticsApi } from '@/lib/services/analytics'
 
 interface Achievement {
   achievement_id: string
@@ -56,18 +57,13 @@ export default function AchievementsPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [summaryRes, allRes] = await Promise.all([
-        fetch('/api/analytics/achievements'),
-        fetch('/api/analytics/achievements/all'),
+      const [summaryData, allData] = await Promise.all([
+        analyticsApi.getAchievements(),
+        analyticsApi.getAllAchievements(),
       ])
       
-      if (summaryRes.ok) {
-        setSummary(await summaryRes.json())
-      }
-      if (allRes.ok) {
-        const data = await allRes.json()
-        setAllAchievements(data.achievements)
-      }
+      setSummary(summaryData)
+      setAllAchievements(allData.achievements)
     } catch (error) {
       console.error('Failed to load achievements:', error)
     } finally {

@@ -9,7 +9,7 @@
  */
 'use client'
 
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { CalibrationState, Point2D } from '../types'
 
@@ -26,6 +26,10 @@ export interface CalibrationOverlayProps {
   irisPosition?: Point2D | null
   /** Whether camera/FaceMesh is producing data */
   cameraReady?: boolean
+  /** Stream for PiP */
+  stream?: MediaStream | null
+  /** Tracker for FaceMesh points */
+  cteTracker?: any
 }
 
 export function CalibrationOverlay({
@@ -37,8 +41,61 @@ export function CalibrationOverlay({
   onCancel,
   irisPosition,
   cameraReady = false,
+  stream,
+  cteTracker,
 }: CalibrationOverlayProps) {
   const [waitingForCamera, setWaitingForCamera] = useState(!cameraReady)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Bind PiP stream
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
+
+  // Draw FaceMesh for PiP
+  useEffect(() => {
+    if (!cteTracker?.faceMesh) return
+
+    const handleResult = (result: any) => {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      if (!canvas || !video || !result.fullMesh) return
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      canvas.width = video.clientWidth
+      canvas.height = video.clientHeight
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      const w = canvas.width
+      const h = canvas.height
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+      for (const p of result.fullMesh) {
+        ctx.beginPath()
+        ctx.arc(p.x * w, p.y * h, 1, 0, 2 * Math.PI)
+        ctx.fill()
+      }
+
+      if (result.landmarks) {
+        ctx.fillStyle = '#38bdf8'
+        ctx.shadowColor = '#38bdf8'
+        ctx.shadowBlur = 10
+        ctx.beginPath()
+        ctx.arc(result.landmarks.leftIris.x * w, result.landmarks.leftIris.y * h, 3, 0, 2 * Math.PI)
+        ctx.arc(result.landmarks.rightIris.x * w, result.landmarks.rightIris.y * h, 3, 0, 2 * Math.PI)
+        ctx.fill()
+        ctx.shadowBlur = 0
+      }
+    }
+
+    const dispose = cteTracker.faceMesh.on('result', handleResult)
+    return () => dispose()
+  }, [cteTracker])
 
   // Update waiting state when camera becomes ready
   useEffect(() => {
@@ -85,6 +142,23 @@ export function CalibrationOverlay({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
+      {/* PiP Video */}
+      {stream && (
+        <div className="absolute top-6 right-6 w-48 aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-white/20 z-[10000]">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover scale-x-[-1]"
+          />
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+          />
+        </div>
+      )}
+
       {/* Instructions Panel */}
       <div className="absolute top-12 left-1/2 -translate-x-1/2 text-center text-white bg-white/10 px-8 py-4 rounded-2xl border border-white/20 shadow-2xl backdrop-blur-md">
         <h2 className="text-xl font-semibold tracking-wide mb-1">Eye Tracking Calibration</h2>

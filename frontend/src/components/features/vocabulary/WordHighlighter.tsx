@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Bookmark, Check, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { vocabularyApi } from '@/lib/services/vocabulary'
 
 interface WordHighlighterProps {
   text: string
@@ -59,19 +60,13 @@ export function WordHighlighter({
       // Get context sentence (find the sentence containing this word)
       const sentence = getSentenceContaining(text, popup.word)
       
-      const response = await fetch('/api/vocabulary/harvest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          word: popup.word,
-          context_sentence: sentence,
-          source_type: sourceType,
-          source_id: sourceId,
-          paragraph_index: paragraphIndex,
-        }),
+      await vocabularyApi.harvestWord({
+        word: popup.word,
+        context_sentence: sentence,
+        source_type: sourceType,
+        source_id: sourceId,
+        paragraph_index: paragraphIndex,
       })
-      
-      if (!response.ok) throw new Error('Failed to save word')
       
       setPopup(prev => prev ? { ...prev, saving: false, saved: true } : null)
       

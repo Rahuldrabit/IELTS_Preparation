@@ -6,25 +6,32 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from services.profile.main import router as profile_router
-from services.reading.main import router as reading_router
-from services.listening.main import router as listening_router
-from services.writing.main import router as writing_router
-from services.vocabulary.main import router as vocabulary_router
-from services.grammar.main import router as grammar_router
-from services.import_svc.main import router as import_router
-from services.analytics.main import router as analytics_router
-from services.ai_agent.main import router as ai_agent_router
+from shared.config import settings
+from services.profile.router import router as profile_router
+from services.reading.router import router as reading_router
+from services.listening.router import router as listening_router
+from services.writing.router import router as writing_router
+from services.vocabulary.router import router as vocabulary_router
+from services.grammar.router import router as grammar_router
+from services.import_svc.router import router as import_router
+from services.analytics.router import router as analytics_router
+from services.chat.router import router as chat_router
 from services.agents.router import router as agents_router
-from services.mocktest.main import router as mocktest_router
-from services.telemetry.main import router as telemetry_router
-from services.speaking.main import router as speaking_router
-from services.journey.main import router as journey_router
+from services.mocktest.router import router as mocktest_router
+from services.telemetry.router import router as telemetry_router
+from services.speaking.router import router as speaking_router
+from services.journey.router import router as journey_router
 # Importing the agents package triggers all @registry.register decorators
 import services.agents  # noqa: F401
 # Scheduler for weekly batch jobs
 from shared.scheduler import start_scheduler, shutdown_scheduler, list_scheduled_jobs
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
+import logging
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,11 +59,28 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global Exception Handlers
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    logger.error(f"Database error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal database error occurred."},
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Please try again later."},
+    )
 
 
 # Health check
@@ -81,7 +105,7 @@ app.include_router(vocabulary_router, prefix="/api")
 app.include_router(grammar_router, prefix="/api")
 app.include_router(import_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
-app.include_router(ai_agent_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 app.include_router(mocktest_router, prefix="/api")
 app.include_router(telemetry_router, prefix="/api")

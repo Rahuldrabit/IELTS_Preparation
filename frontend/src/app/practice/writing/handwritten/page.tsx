@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { writingApi } from '@/lib/services/writing'
 
 type Phase = 'upload' | 'extracting' | 'preview' | 'scoring' | 'result'
 
@@ -80,21 +81,9 @@ export default function HandwrittenUploadPage() {
     setPhase('extracting')
     setError(null)
     
-    const formData = new FormData()
-    formData.append('file', file)
-    
     try {
-      const response = await fetch('/api/writing/handwritten/extract', {
-        method: 'POST',
-        body: formData,
-      })
+      const result = await writingApi.extractHandwritten(file)
       
-      if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.detail || 'Extraction failed')
-      }
-      
-      const result = await response.json()
       setExtractedText(result)
       setEditedText(result.text)
       setPhase('preview')
@@ -110,22 +99,8 @@ export default function HandwrittenUploadPage() {
     setPhase('scoring')
     setError(null)
     
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('task_type', 'task_2')
-    
     try {
-      const response = await fetch('/api/writing/handwritten/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      
-      if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.detail || 'Scoring failed')
-      }
-      
-      const result = await response.json()
+      const result = await writingApi.submitHandwritten(1, file, editedText)
       setScoreResult(result)
       setPhase('result')
     } catch (err) {
