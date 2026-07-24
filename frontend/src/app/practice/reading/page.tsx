@@ -168,13 +168,13 @@ export default function ReadingPage() {
     setSetupModalOpen(true)
   }, [])
 
-  const handleSetupComplete = useCallback((mediaStream: MediaStream) => {
+  const handleSetupComplete = useCallback(async (mediaStream: MediaStream) => {
     setSetupModalOpen(false)
     setActiveStream(mediaStream)
     setCameraStatus('active')
     setEyeTrackingEnabled(true)
 
-    const stored = calibration.loadStored()
+    const stored = await calibration.loadStored()
     if (!stored || forceRecalibrate) {
       setShowCalibration(true)
       calibration.startCalibration()

@@ -30,6 +30,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    google_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=True)  # Nullable for no-auth MVP
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     current_band: Mapped[float] = mapped_column(Numeric(3, 1), default=6.5)
@@ -49,10 +50,15 @@ class User(Base):
     native_language: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     occupation: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     education_level: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    university_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     ielts_module: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # academic | general
     reason_for_ielts: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     focus_skills: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # e.g. ["reading", "writing"]
     study_hours_per_day: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # ── Subscription ─────────────────────────────────────────────────────────────
+    is_pro: Mapped[bool] = mapped_column(Boolean, default=False)
+    pro_valid_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

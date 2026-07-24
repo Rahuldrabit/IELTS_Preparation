@@ -94,3 +94,23 @@ Index("idx_telemetry_sessions_backend", TelemetrySession.backend_session_id)
 Index("idx_telemetry_summaries_session", TelemetrySummary.telemetry_session_id)
 Index("idx_attention_scores_session", AttentionScore.telemetry_session_id)
 Index("idx_question_behavior_session", QuestionBehavior.telemetry_session_id)
+
+class UserGazeCalibration(Base):
+    """Stores per-user eye calibration matrix (polynomial/affine coefficients)."""
+
+    __tablename__ = "user_gaze_calibrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    screen_width: Mapped[int] = mapped_column(Integer, nullable=False)
+    screen_height: Mapped[int] = mapped_column(Integer, nullable=False)
+    device_pixel_ratio: Mapped[float] = mapped_column(Float, default=1.0)
+    calibration_matrix: Mapped[dict] = mapped_column(JSON, nullable=False)
+    accuracy_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+Index("idx_user_gaze_calibrations_user", UserGazeCalibration.user_id)

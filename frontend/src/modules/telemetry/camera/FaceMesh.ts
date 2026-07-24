@@ -54,9 +54,11 @@ export interface FaceMeshConfig {
 
 
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 const DEFAULT_CONFIG: FaceMeshConfig = {
-  wasmUrl: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm',
-  modelUrl: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+  wasmUrl: `${API_BASE}/api/v1/telemetry/models/wasm`,
+  modelUrl: `${API_BASE}/api/v1/telemetry/models/face_landmarker.task`,
   useGpu: true,
   earThreshold: 0.2,
   blinkFrameCount: 2,

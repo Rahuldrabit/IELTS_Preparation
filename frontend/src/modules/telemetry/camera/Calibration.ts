@@ -166,6 +166,11 @@ export class CalibrationSystem extends Emitter<CalibrationEventMap> implements I
       return null
     }
   }
+  
+  /** Inject a calibration matrix directly (e.g. from backend API) */
+  setCalibrationMatrix(matrix: CalibrationMatrix): void {
+    this.setState({ ...this._state, status: 'complete', matrix, accuracy: 1 - matrix.mse / 100 })
+  }
 
   /** Persist current calibration to localStorage */
   saveToStorage(matrix: CalibrationMatrix): void {

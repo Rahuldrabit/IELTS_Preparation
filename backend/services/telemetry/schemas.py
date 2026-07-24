@@ -107,3 +107,30 @@ class TelemetryProfileResponse(BaseModel):
     avg_regression_rate: float
     strengths: List[str] = Field(default_factory=list)
     weaknesses: List[str] = Field(default_factory=list)
+
+
+# ─────────────────────────────────────────────
+#  Calibration Schemas
+# ─────────────────────────────────────────────
+
+class UserGazeCalibrationCreate(BaseModel):
+    screen_width: int
+    screen_height: int
+    device_pixel_ratio: float = 1.0
+    calibration_matrix: Dict = Field(..., description="The computed transformation matrix/coefficients")
+    accuracy_score: Optional[float] = None
+
+
+class UserGazeCalibrationResponse(BaseModel):
+    id: int
+    user_id: int
+    screen_width: int
+    screen_height: int
+    device_pixel_ratio: float
+    calibration_matrix: Dict
+    accuracy_score: Optional[float]
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

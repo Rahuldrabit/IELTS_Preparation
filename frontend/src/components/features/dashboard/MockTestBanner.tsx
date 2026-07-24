@@ -56,23 +56,23 @@ export function MockTestBanner() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <Trophy className="h-6 w-6 text-primary" />
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 shadow-inner">
+              <span className="text-2xl">🎁</span>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold mb-0.5">Take Your Diagnostic Mock Test</h3>
-              <p className="text-xs text-muted-foreground">
-                Understand your current IELTS level with a full timed assessment
+            <div className="flex-1 space-y-1">
+              <h3 className="text-lg font-bold text-primary">Take Your FREE Diagnostic Mock Test</h3>
+              <p className="text-sm text-muted-foreground">
+                Understand your current IELTS level with a full timed assessment to personalize your AI tutor's plan.
               </p>
             </div>
             <Button
-              size="sm"
+              size="lg"
               onClick={() => router.push('/practice/mock-test')}
-              className="shrink-0"
+              className="shrink-0 font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform"
             >
-              Start
+              Start Free Test
               <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           </div>

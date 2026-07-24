@@ -6,6 +6,7 @@ import { Target, Calendar, Flame, ArrowRight, Trophy } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { useRouter } from 'next/navigation'
 import { useProfile } from '@/lib/hooks/useProfile'
 import { getGreeting, calculateDaysUntil } from '@/lib/utils'
 import { progressRing, fadeInUp, staggerItem } from '@/lib/animations'
@@ -65,6 +66,7 @@ function ProgressRing({ value, max, size = 120, strokeWidth = 8 }: ProgressRingP
 
 export function HeroCard() {
   const { data: user, isLoading } = useProfile()
+  const router = useRouter()
   const [journeyDialogOpen, setJourneyDialogOpen] = useState(false)
   const daysUntil = user?.exam_date ? calculateDaysUntil(new Date(user.exam_date)) : 0
   const goalProgress = user ? (user.tasks_completed / user.daily_goal) * 100 : 0
@@ -188,14 +190,25 @@ export function HeroCard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
               >
-                <Button 
-                  size="xl" 
-                  className="bg-white text-primary hover:bg-white/90 shadow-lg"
-                  onClick={() => setJourneyDialogOpen(true)}
-                >
-                  Start Today's Journey
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button 
+                    size="xl" 
+                    className="bg-white text-primary hover:bg-white/90 shadow-lg"
+                    onClick={() => setJourneyDialogOpen(true)}
+                  >
+                    Start Today's Journey
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                  <Button 
+                    size="xl"
+                    variant="outline"
+                    className="border-white text-white hover:bg-white/20 shadow-lg"
+                    onClick={() => router.push('/insights')}
+                  >
+                    View AI Analytics
+                    <Trophy className="ml-2 h-5 w-5" />
+                  </Button>
+                </div>
               </motion.div>
             </div>
           </div>

@@ -1,5 +1,7 @@
 /**
  * useCalibration — React hook for managing the 9-point calibration flow.
+ * Now syncs user calibration with the backend API.
+ */
  *
  * Exposes calibration state, current target, and control functions
  * for the CalibrationOverlay component.
@@ -25,9 +27,11 @@ export interface UseCalibrationReturn {
   cancel: () => void
   /** Check if stored calibration exists */
   hasStored: boolean
-  /** Load calibration from localStorage */
-  loadStored: () => CalibrationMatrix | null
+  /** Load calibration from backend/localStorage */
+  loadStored: () => Promise<CalibrationMatrix | null>
 }
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export function useCalibration(): UseCalibrationReturn {
   const calRef = useRef<CalibrationSystem>(new CalibrationSystem())
@@ -36,16 +40,28 @@ export function useCalibration(): UseCalibrationReturn {
 
   useEffect(() => {
     const cal = calRef.current
-    const dispose = cal.on('stateChange', (newState) => {
+    const dispose1 = cal.on('stateChange', (newState) => {
       setState(newState)
     })
-
-    // Check for stored calibration on mount
-    const stored = cal.loadFromStorage()
-    setHasStored(stored !== null)
+    
+    // Save to backend when complete
+    const dispose2 = cal.on('complete', (matrix) => {
+      fetch(`${API_BASE}/api/v1/telemetry/calibration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          screen_width: window.innerWidth,
+          screen_height: window.innerHeight,
+          device_pixel_ratio: window.devicePixelRatio,
+          calibration_matrix: matrix,
+          accuracy_score: Math.max(0, 1 - matrix.mse / 100)
+        })
+      }).catch(console.error)
+    })
 
     return () => {
-      dispose()
+      dispose1()
+      dispose2()
       cal.destroy()
     }
   }, [])
@@ -66,8 +82,24 @@ export function useCalibration(): UseCalibrationReturn {
     calRef.current.stop()
   }, [])
 
-  const loadStored = useCallback((): CalibrationMatrix | null => {
-    return calRef.current.loadFromStorage()
+  const loadStored = useCallback(async (): Promise<CalibrationMatrix | null> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/telemetry/calibration?screen_width=${window.innerWidth}&screen_height=${window.innerHeight}`)
+      if (res.ok) {
+        const data = await res.json()
+        const matrix = data.calibration_matrix as CalibrationMatrix
+        calRef.current.setCalibrationMatrix(matrix)
+        setHasStored(true)
+        return matrix
+      }
+    } catch (e) {
+      console.warn("Failed to load calibration from backend", e)
+    }
+    
+    // Fallback to local storage if backend fails
+    const matrix = calRef.current.loadFromStorage()
+    setHasStored(matrix !== null)
+    return matrix
   }, [])
 
   return {

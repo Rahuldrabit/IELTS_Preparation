@@ -11,7 +11,12 @@ from .schemas import (
     TelemetryEventCreate,
     TelemetryReportResponse,
     TelemetryProfileResponse,
+    UserGazeCalibrationCreate,
+    UserGazeCalibrationResponse,
 )
+from fastapi.responses import FileResponse
+from pathlib import Path
+
 from .models import TelemetrySession, TelemetrySummary
 from . import repository
 from . import service
@@ -102,3 +107,57 @@ async def get_profile(user_id: int, db: AsyncSession = Depends(get_db)):
     all_summaries = await repository.get_summaries_for_sessions(db, session_ids)
     
     return service.build_profile_response(user_id, len(sessions), all_summaries)
+
+@router.get("/calibration", response_model=UserGazeCalibrationResponse)
+async def get_calibration(
+    screen_width: int,
+    screen_height: int,
+    user_id: int = 1, # Default placeholder if auth is disabled
+    db: AsyncSession = Depends(get_db),
+):
+    cal = await repository.get_user_calibration(db, user_id, screen_width, screen_height)
+    if not cal:
+        raise HTTPException(status_code=404, detail="Calibration not found for this screen resolution")
+    return cal
+
+@router.post("/calibration", response_model=UserGazeCalibrationResponse)
+async def save_calibration(
+    body: UserGazeCalibrationCreate,
+    user_id: int = 1,
+    db: AsyncSession = Depends(get_db),
+):
+    cal = await repository.save_user_calibration(db, user_id, body)
+    return cal
+
+@router.delete("/calibration")
+async def delete_calibration(
+    user_id: int = 1,
+    db: AsyncSession = Depends(get_db),
+):
+    await repository.delete_user_calibration(db, user_id)
+    return {"status": "deleted"}
+
+@router.get("/models/{file_path:path}")
+async def serve_model_files(file_path: str):
+    # Base directory for the backend (assumes router is in services/telemetry)
+    base_dir = Path(__file__).resolve().parent.parent.parent / "assets" / "telemetry" / "models"
+    file = base_dir / file_path
+    
+    # Prevent directory traversal
+    try:
+        file.resolve().relative_to(base_dir)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Invalid path")
+        
+    if not file.exists() or not file.is_file():
+        raise HTTPException(status_code=404, detail="Model file not found")
+        
+    # Use appropriate media type for wasm
+    media_type = "application/wasm" if file.suffix == ".wasm" else None
+    
+    return FileResponse(
+        path=file,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"}
+    )
+

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from shared.config import settings
+from services.auth.router import router as auth_router
 from services.profile.router import router as profile_router
 from services.reading.router import router as reading_router
 from services.listening.router import router as listening_router
@@ -97,6 +98,7 @@ async def scheduler_jobs():
 
 
 # Mount all service routers with /api prefix
+app.include_router(auth_router, prefix="/api")
 app.include_router(profile_router, prefix="/api")
 app.include_router(reading_router, prefix="/api")
 app.include_router(listening_router, prefix="/api")
